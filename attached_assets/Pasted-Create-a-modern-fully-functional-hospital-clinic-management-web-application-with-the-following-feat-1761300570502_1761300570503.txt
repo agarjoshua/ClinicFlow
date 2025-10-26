@@ -1,0 +1,70 @@
+Create a modern, fully-functional hospital/clinic management web application with the following features:
+Core Functionality:
+
+Patient Onboarding Module
+
+Register new patients with complete demographic information (name, age, gender, contact, emergency contact, medical history, allergies)
+Generate unique patient IDs automatically
+Upload and store patient documents/photos
+Search and retrieve existing patient records
+
+Diagnosis Management (CRUD)
+
+Create new diagnosis entries for patients
+Record symptoms, vital signs (temperature, blood pressure, heart rate, oxygen saturation)
+Add diagnosis notes, prescribed medications, and treatment plans
+Update existing diagnosis records
+View complete diagnosis history for each patient
+Delete/archive old records
+
+Patient Discharge System
+
+Mark patients as discharged with discharge summaries
+Generate discharge reports including treatment received, medications prescribed, and follow-up instructions
+Track discharge dates and reasons
+Option to readmit discharged patients
+
+Data Persistence
+
+Store all patient data, diagnoses, and records persistently using the window.storage API
+Implement proper data relationships between patients and their diagnoses
+Include data export functionality (downloadable JSON/CSV)
+
+UI/UX Requirements:
+
+Create a stunning, modern dashboard with a clean, professional medical aesthetic
+Use a contemporary color scheme (consider calming blues/teals with white, or a sophisticated dark mode)
+Include smooth animations and transitions
+Responsive design that works on desktop and tablet
+Modern card-based layouts with subtle shadows and glassmorphism effects
+Interactive data visualizations showing:
+
+Total patients (active, discharged, new today)
+Recent admissions
+Pending diagnoses
+Quick stats dashboard
+
+Intuitive navigation with a sidebar or top nav
+Beautiful forms with proper validation and user feedback
+Modern icons throughout (use lucide-react)
+Loading states and smooth transitions between views
+
+Technical Requirements:
+
+Build as a React component artifact
+Use Tailwind CSS for styling (core utilities only)
+Implement using React hooks (useState, useEffect)
+Use lucide-react for icons
+Include proper error handling
+Add confirmation dialogs for destructive actions
+Make it production-ready with no placeholders
+
+Additional Nice-to-Haves:
+
+Search and filter capabilities across all modules
+Print-friendly discharge summaries
+Quick action buttons for common tasks
+Toast notifications for successful actions
+Keyboard shortcuts for power users
+
+Please create a complete, working application that a clinic could deploy immediately. Focus on making it visually impressive while maintaining excellent usability for medical staff.

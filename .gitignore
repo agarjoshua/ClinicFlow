@@ -1,0 +1,33 @@
+# Node
+node_modules/
+
+# Build
+/dist
+/.next
+/.vercel
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Misc
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+
+# Others
+coverage/
