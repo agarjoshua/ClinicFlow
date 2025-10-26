@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: clinicflow-server
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+    repo: https://github.com/agarjoshua/ClinicFlow
+    branch: main
+    rootDir: .
