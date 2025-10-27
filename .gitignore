@@ -10,7 +10,8 @@ node_modules/
 *.log
 
 # Environment
-.env
+client/.env
+
 .env.local
 .env.*.local
 
