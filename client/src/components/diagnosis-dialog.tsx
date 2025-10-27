@@ -38,7 +38,7 @@ export function DiagnosisDialog({ patient, open, onOpenChange }: DiagnosisDialog
   const form = useForm<InsertDiagnosis>({
     resolver: zodResolver(insertDiagnosisSchema),
     defaultValues: {
-      patientId: patient.id,
+      patient_id: patient.id,
       symptoms: "",
       temperature: "",
       bloodPressure: "",

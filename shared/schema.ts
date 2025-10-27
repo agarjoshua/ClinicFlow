@@ -31,7 +31,7 @@ export const patients = pgTable("patients", {
 // Diagnoses table - medical diagnosis records for patients
 export const diagnoses = pgTable("diagnoses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  patientId: varchar("patientIId").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  patient_id: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   symptoms: text("symptoms").notNull(),
   temperature: text("temperature"),
   bloodPressure: text("blood_pressure"),
@@ -71,7 +71,7 @@ export const patientsRelations = relations(patients, ({ many }) => ({
 
 export const diagnosesRelations = relations(diagnoses, ({ one }) => ({
   patient: one(patients, {
-    fields: [diagnoses.patientId],
+    fields: [diagnoses.patient_id],
     references: [patients.id],
   }),
 }));
@@ -102,7 +102,7 @@ export const insertPatientSchema = createInsertSchema(patients, {
 export const updatePatientSchema = insertPatientSchema.partial();
 
 export const insertDiagnosisSchema = createInsertSchema(diagnoses, {
-  patientId: z.string(),
+  patient_id: z.string(),
   symptoms: z.string().min(1, "Symptoms are required"),
   temperature: z.string().optional(),
   bloodPressure: z.string().optional(),
@@ -116,7 +116,8 @@ export const insertDiagnosisSchema = createInsertSchema(diagnoses, {
   diagnosisDate: true,
 });
 
-export const updateDiagnosisSchema = insertDiagnosisSchema.omit({ patientId: true }).partial();
+// Remove old patientId reference
+export const updateDiagnosisSchema = insertDiagnosisSchema.omit({ patient_id: true }).partial();
 
 export const insertDischargeSchema = createInsertSchema(discharges, {
   dischargeSummary: z.string().optional(),

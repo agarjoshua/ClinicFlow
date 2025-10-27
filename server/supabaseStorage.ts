@@ -252,7 +252,7 @@ export class SupabaseStorage implements IStorage {
     if (error) throw error;
     
     // Update patient status to discharged
-    await this.updatePatientStatus(insertDischarge.patientId, "discharged", new Date());
+  await this.updatePatientStatus(insertDischarge.patient_id, "discharged", new Date());
     
     return data as Discharge;
   }
