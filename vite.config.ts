@@ -26,11 +26,8 @@ export default defineConfig({
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
   },
-  root: path.resolve(import.meta.dirname, "client"),
-  build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
-    emptyOutDir: true,
-  },
+  // Remove custom root and build output for Netlify compatibility
+  // Vite will use the default project root and output to dist/
   server: {
     fs: {
       strict: true,

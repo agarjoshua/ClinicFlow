@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { insertPatientSchema, type InsertPatient } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function PatientForm() {
   const [, setLocation] = useLocation();
@@ -48,11 +48,29 @@ export default function PatientForm() {
 
   const createPatientMutation = useMutation({
     mutationFn: async (data: InsertPatient) => {
-      return await apiRequest("POST", "/api/patients", data);
+      // Get sequence number
+      const { data: seqData, error: seqError } = await supabase
+        .from("patient_sequence")
+        .insert({})
+        .select("id")
+        .single();
+      if (seqError) throw seqError;
+      const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const patientNumber = String(seqData.id).padStart(3, '0');
+      const generatedPatientId = `P-${date}-${patientNumber}`;
+      // Create patient record
+      const patientData = {
+        ...data,
+        patient_id: generatedPatientId,
+      };
+      const { error } = await supabase
+        .from("patients")
+        .insert(patientData);
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/patients"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/patients/recent"] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["patients-recent"] });
       toast({
         title: "Success",
         description: "Patient registered successfully",

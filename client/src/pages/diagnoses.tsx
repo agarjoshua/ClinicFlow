@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
 import { Search, FileText, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,11 +15,27 @@ export default function Diagnoses() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: allDiagnoses = [], isLoading: diagnosesLoading } = useQuery<Diagnosis[]>({
-    queryKey: ["/api/diagnoses"],
+    queryKey: ["diagnoses"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("diagnoses")
+        .select()
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: patients = [], isLoading: patientsLoading } = useQuery<Patient[]>({
-    queryKey: ["/api/patients"],
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select()
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const isLoading = diagnosesLoading || patientsLoading;
@@ -32,7 +49,7 @@ export default function Diagnoses() {
     if (!patient) return false;
     const matchesSearch =
       patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  patient.patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       diagnosis.symptoms.toLowerCase().includes(searchTerm.toLowerCase()) ||
       diagnosis.diagnosisNotes.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
@@ -102,10 +119,10 @@ export default function Diagnoses() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-medium" data-testid={`text-patient-name-${diagnosis.id}`}>{patient!.name}</h3>
-                          <span className="text-xs text-muted-foreground font-mono">{patient!.patient_id}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{patient!.patientId}</span>
                         </div>
                         <p className="text-xs text-muted-foreground mb-2">
-                          {diagnosis.diagnosisDate && !isNaN(Date.parse(diagnosis.diagnosisDate))
+                          {diagnosis.diagnosisDate && typeof diagnosis.diagnosisDate === 'string' && !isNaN(Date.parse(diagnosis.diagnosisDate))
                             ? format(new Date(diagnosis.diagnosisDate), 'MMMM dd, yyyy - hh:mm a')
                             : 'Invalid date'}
                         </p>

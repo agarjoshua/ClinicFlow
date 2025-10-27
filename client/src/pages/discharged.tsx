@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
 import { Search, UserCheck, Eye, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +15,15 @@ export default function Discharged() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: patients = [], isLoading } = useQuery<Patient[]>({
-    queryKey: ["/api/patients"],
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select()
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const dischargedPatients = patients.filter(p => p.status === "discharged");

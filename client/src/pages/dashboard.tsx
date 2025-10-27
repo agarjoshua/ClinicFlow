@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
 import { Users, UserPlus, Activity, UserCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,11 +12,28 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
 
   const { data: patients = [], isLoading } = useQuery<Patient[]>({
-    queryKey: ["/api/patients"],
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select()
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: recentPatients = [] } = useQuery<Patient[]>({
-    queryKey: ["/api/patients/recent"],
+    queryKey: ["patients-recent"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select()
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const activePatients = patients.filter(p => p.status === "active");

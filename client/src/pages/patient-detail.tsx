@@ -11,7 +11,7 @@ import type { Patient, Diagnosis, Discharge } from "@shared/schema";
 import { useState } from "react";
 import { DischargeDialog } from "@/components/discharge-dialog";
 import { DiagnosisDialog } from "@/components/diagnosis-dialog";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -36,26 +36,57 @@ export default function PatientDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: patient, isLoading } = useQuery<Patient>({
-    queryKey: ["/api/patients", patientId],
+    queryKey: ["patient", patientId],
     enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select()
+        .eq("id", patientId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: diagnoses = [] } = useQuery<Diagnosis[]>({
-    queryKey: ["/api/diagnoses", patientId],
+    queryKey: ["diagnoses", patientId],
     enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("diagnoses")
+        .select()
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: discharges = [] } = useQuery<Discharge[]>({
-    queryKey: ["/api/discharges", patientId],
+    queryKey: ["discharges", patientId],
     enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("discharges")
+        .select()
+        .eq("patient_id", patientId)
+        .order("discharge_date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const deletePatientMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("DELETE", `/api/patients/${patientId}`, undefined);
+      const { error } = await supabase
+        .from("patients")
+        .delete()
+        .eq("id", patientId);
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/patients"] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
       toast({
         title: "Success",
         description: "Patient deleted successfully",
