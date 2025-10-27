@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { insertDiagnosisSchema, type InsertDiagnosis, type Patient } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabaseClient";
 
 interface DiagnosisDialogProps {
   patient: Patient;
@@ -52,10 +52,13 @@ export function DiagnosisDialog({ patient, open, onOpenChange }: DiagnosisDialog
 
   const createDiagnosisMutation = useMutation({
     mutationFn: async (data: InsertDiagnosis) => {
-      return await apiRequest("POST", "/api/diagnoses", data);
+      const { error } = await supabase
+        .from("diagnoses")
+        .insert(data);
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/diagnoses", patient.id] });
+      queryClient.invalidateQueries({ queryKey: ["diagnoses", patient.id] });
       toast({
         title: "Success",
         description: "Diagnosis added successfully",

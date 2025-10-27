@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { insertDischargeSchema, type InsertDischarge, type Patient } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabaseClient";
 
 interface DischargeDialogProps {
   patient: Patient;
@@ -56,12 +56,15 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
 
   const dischargeMutation = useMutation({
     mutationFn: async (data: InsertDischarge) => {
-      return await apiRequest("POST", "/api/discharges", data);
+      const { error } = await supabase
+        .from("discharges")
+        .insert(data);
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/patients", patient.id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/patients"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/discharges", patient.id] });
+      queryClient.invalidateQueries({ queryKey: ["patients", patient.id] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["discharges", patient.id] });
       toast({
         title: "Success",
         description: "Patient discharged successfully",
