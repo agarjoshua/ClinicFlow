@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
+import { useEffect } from "react";
 import { Search, FileText, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,20 @@ import type { Diagnosis, Patient } from "@shared/schema";
 
 export default function Diagnoses() {
   const [, setLocation] = useLocation();
+  const [session, setSession] = useState<any>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: allDiagnoses = [], isLoading: diagnosesLoading } = useQuery<Diagnosis[]>({

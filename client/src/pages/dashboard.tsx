@@ -4,11 +4,31 @@ import { Users, UserPlus, Activity, UserCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import type { Patient } from "@shared/schema";
 
 export default function Dashboard() {
+  const [session, setSession] = useState<any>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setLocation("/auth");
+  };
   const [, setLocation] = useLocation();
 
   const { data: patients = [], isLoading } = useQuery<Patient[]>({
@@ -91,6 +111,11 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end mb-2">
+        {session && (
+          <Button variant="outline" onClick={handleLogout} data-testid="button-logout">Logout</Button>
+        )}
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>

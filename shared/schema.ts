@@ -40,6 +40,7 @@ export const diagnoses = pgTable("diagnoses", {
   diagnosisNotes: text("diagnosis_notes").notNull(),
   medications: text("medications"),
   treatmentPlan: text("treatment_plan"),
+  mediaUrl: text("media_url"),
   diagnosisDate: timestamp("diagnosis_date").notNull().default(sql`now()`),
 });
 
@@ -111,6 +112,7 @@ export const insertDiagnosisSchema = createInsertSchema(diagnoses, {
   diagnosisNotes: z.string().min(1, "Diagnosis notes are required"),
   medications: z.string().optional(),
   treatmentPlan: z.string().optional(),
+  mediaUrl: z.string().url().optional(),
 }).omit({
   id: true,
   diagnosisDate: true,

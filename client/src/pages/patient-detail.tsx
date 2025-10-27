@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import type { Patient, Diagnosis, Discharge } from "@shared/schema";
 import { useState } from "react";
+import { useEffect } from "react";
 import { DischargeDialog } from "@/components/discharge-dialog";
 import { DiagnosisDialog } from "@/components/diagnosis-dialog";
 import { supabase } from "@/lib/supabaseClient";
@@ -27,6 +28,20 @@ import {
 export default function PatientDetail() {
   const [, params] = useRoute("/patients/:id");
   const [, setLocation] = useLocation();
+  const [session, setSession] = useState<any>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const patientId = params?.id;
@@ -68,7 +83,7 @@ export default function PatientDetail() {
     enabled: !!patientId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("discharges")
+        .from("discharge_records")
         .select()
         .eq("patient_id", patientId)
         .order("discharge_date", { ascending: false });
@@ -368,26 +383,26 @@ export default function PatientDetail() {
                       <div>
                         <CardTitle className="text-base">Discharge Summary</CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {format(new Date(discharge.dischargeDate), 'MMMM dd, yyyy - hh:mm a')}
+                          {discharge.dischargeDate && format(new Date(discharge.dischargeDate), 'MMMM dd, yyyy - hh:mm a')}
                         </p>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {discharge.dischargeReason && (
+                    {discharge.conditionOnDischarge && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Reason for Discharge</p>
-                        <p className="text-sm">{discharge.dischargeReason}</p>
+                        <p className="text-sm text-muted-foreground mb-1">Condition on Discharge</p>
+                        <p className="text-sm">{discharge.conditionOnDischarge}</p>
                       </div>
                     )}
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Summary</p>
                       <p className="text-sm">{discharge.dischargeSummary}</p>
                     </div>
-                    {discharge.prescribedMedications && (
+                    {discharge.medications && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Prescribed Medications</p>
-                        <p className="text-sm">{discharge.prescribedMedications}</p>
+                        <p className="text-sm text-muted-foreground mb-1">Medications</p>
+                        <p className="text-sm">{discharge.medications}</p>
                       </div>
                     )}
                     <div>

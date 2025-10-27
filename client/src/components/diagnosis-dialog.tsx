@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
@@ -32,6 +33,8 @@ interface DiagnosisDialogProps {
 }
 
 export function DiagnosisDialog({ patient, open, onOpenChange }: DiagnosisDialogProps) {
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -77,6 +80,25 @@ export function DiagnosisDialog({ patient, open, onOpenChange }: DiagnosisDialog
 
   const onSubmit = (data: InsertDiagnosis) => {
     createDiagnosisMutation.mutate(data);
+      if (mediaFile) {
+        setUploading(true);
+        const fileExt = mediaFile.name.split('.').pop();
+        const fileName = `${patient.id}-${Date.now()}.${fileExt}`;
+        supabase.storage
+          .from('diagnosis-media')
+          .upload(fileName, mediaFile)
+          .then(({ data, error }) => {
+            setUploading(false);
+            if (error) {
+              toast({ title: 'Error', description: error.message, variant: 'destructive' });
+              return;
+            }
+            const mediaUrl = data ? supabase.storage.from('diagnosis-media').getPublicUrl(fileName).data.publicUrl : '';
+            createDiagnosisMutation.mutate({ ...data, mediaUrl });
+          });
+      } else {
+        createDiagnosisMutation.mutate(data);
+      }
   };
 
   return (
@@ -233,22 +255,26 @@ export function DiagnosisDialog({ patient, open, onOpenChange }: DiagnosisDialog
               )}
             />
 
+            <FormItem>
+              <FormLabel>Media (Image, Video, or Link)</FormLabel>
+              <FormControl>
+                <Input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={e => setMediaFile(e.target.files?.[0] ?? null)}
+                  disabled={uploading}
+                  data-testid="input-media-file"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
                 Cancel
               </Button>
-              <Button type="submit" disabled={createDiagnosisMutation.isPending} data-testid="button-submit">
-                {createDiagnosisMutation.isPending ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Diagnosis
-                  </>
-                )}
+              <Button type="submit" disabled={createDiagnosisMutation.isPending || uploading} data-testid="button-submit">
+                <Save className="w-4 h-4 mr-2" />
+                {uploading ? 'Uploading...' : 'Save Diagnosis'}
               </Button>
             </DialogFooter>
           </form>

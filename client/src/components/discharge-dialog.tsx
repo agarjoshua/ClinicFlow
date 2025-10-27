@@ -39,15 +39,15 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
     resolver: zodResolver(insertDischargeSchema),
     defaultValues: {
       patientId: patient.id,
-      discharge_date: "",
+      dischargeDate: "",
       dischargeTime: "",
       dischargeType: "regular",
-      condition_on_discharge: "",
+      conditionOnDischarge: "",
       dischargeSummary: "",
       followUpInstructions: "",
       medications: "",
-      diet_instructions: "",
-      activity_restrictions: "",
+      dietInstructions: "",
+      activityRestrictions: "",
       followUpAppointment: "",
       dischargedBy: "",
       finalDiagnosis: "",
@@ -56,10 +56,33 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
 
   const dischargeMutation = useMutation({
     mutationFn: async (data: InsertDischarge) => {
+      // Map camelCase form data to snake_case DB fields
+      const payload = {
+        patient_id: data.patientId,
+        discharge_date: data.dischargeDate,
+        discharge_time: data.dischargeTime,
+        discharge_type: data.dischargeType,
+        condition_on_discharge: data.conditionOnDischarge,
+        discharge_summary: data.dischargeSummary,
+        follow_up_instructions: data.followUpInstructions,
+        medications: data.medications,
+        diet_instructions: data.dietInstructions,
+        activity_restrictions: data.activityRestrictions,
+        follow_up_appointment: data.followUpAppointment,
+        discharged_by: data.dischargedBy,
+        final_diagnosis: data.finalDiagnosis,
+      };
       const { error } = await supabase
-        .from("discharges")
-        .insert(data);
+        .from("discharge_records")
+        .insert(payload);
       if (error) throw error;
+
+      // Update patient status to discharged
+      const { error: updateError } = await supabase
+        .from("patients")
+        .update({ status: "discharged" })
+        .eq("id", data.patientId);
+      if (updateError) throw updateError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patients", patient.id] });
@@ -100,7 +123,7 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-primary/5 rounded-lg p-4 mb-2 border border-primary/20">
               <FormField
                 control={form.control}
-                name="discharge_date"
+                name="dischargeDate"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-semibold text-primary">Discharge Date *</FormLabel>
@@ -152,7 +175,7 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
             </div>
             <FormField
               control={form.control}
-              name="condition_on_discharge"
+              name="conditionOnDischarge"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Condition on Discharge *</FormLabel>
@@ -191,7 +214,7 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
             />
             <FormField
               control={form.control}
-              name="diet_instructions"
+              name="dietInstructions"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Diet Instructions</FormLabel>
@@ -204,7 +227,7 @@ export function DischargeDialog({ patient, open, onOpenChange }: DischargeDialog
             />
             <FormField
               control={form.control}
-              name="activity_restrictions"
+              name="activityRestrictions"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Activity Restrictions</FormLabel>
