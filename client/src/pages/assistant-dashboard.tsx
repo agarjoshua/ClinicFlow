@@ -15,13 +15,29 @@ import {
 } from "lucide-react";
 import { format, isToday, parseISO } from "date-fns";
 import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
 
 export default function AssistantDashboard() {
   const [, setLocation] = useLocation();
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Check if user is authenticated
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        setLocation("/auth");
+        return;
+      }
+      setIsAuthed(true);
+      setIsCheckingAuth(false);
+    });
+  }, [setLocation]);
 
   // Fetch today's clinic sessions
   const { data: todayClinics = [] } = useQuery({
     queryKey: ["todayClinics"],
+    enabled: isAuthed,
     queryFn: async () => {
       const today = format(new Date(), "yyyy-MM-dd");
       console.log("Fetching clinics for:", today);
@@ -54,6 +70,7 @@ export default function AssistantDashboard() {
   // Fetch pending triage appointments
   const { data: pendingTriage = [] } = useQuery({
     queryKey: ["pendingTriage"],
+    enabled: isAuthed,
     queryFn: async () => {
       console.log("Fetching pending triage appointments");
       const { data, error } = await supabase
@@ -85,6 +102,7 @@ export default function AssistantDashboard() {
   // Fetch active post-op patients
   const { data: activePostOp = [] } = useQuery({
     queryKey: ["activePostOp"],
+    enabled: isAuthed,
     queryFn: async () => {
       console.log("Fetching active post-op patients");
       // First get all procedures marked as done
@@ -133,6 +151,7 @@ export default function AssistantDashboard() {
   // Fetch upcoming procedures
   const { data: upcomingProcedures = [] } = useQuery({
     queryKey: ["upcomingProcedures"],
+    enabled: isAuthed,
     queryFn: async () => {
       const today = format(new Date(), "yyyy-MM-dd");
       console.log("Fetching upcoming procedures for:", today);
@@ -170,6 +189,25 @@ export default function AssistantDashboard() {
     }
     return Math.max(...procedure.post_op_updates.map((u: any) => u.day_post_op));
   };
+
+  // Show loading screen while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show nothing if not authenticated (redirecting)
+  if (!isAuthed) {
+    return null;
+  }
 
   return (
     <div className="space-y-6">
