@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# ClinicFlow Doctor Calendar - Quick Setup Script
+# This script helps you set up the doctor calendar feature
+
+echo "🏥 ClinicFlow Doctor Calendar Setup"
+echo "===================================="
+echo ""
+
+echo "✅ Step 1: Schema has been updated with:"
+echo "   - Doctor type and schema"
+echo "   - Appointment table and schema"
+echo "   - Validation schemas for Zod"
+echo ""
+
+echo "📁 Step 2: New files created:"
+echo "   - client/src/pages/doctor-calendar.tsx (main calendar dashboard)"
+echo "   - client/src/pages/new-appointment.tsx (appointment creation)"
+echo "   - doctors-appointments-migration.sql (database migration)"
+echo ""
+
+echo "🔄 Step 3: Updated files:"
+echo "   - client/src/App.tsx (role detection and routing)"
+echo "   - client/src/pages/auth.tsx (role selection on signup)"
+echo "   - client/src/components/app-sidebar.tsx (role-based menu)"
+echo "   - shared/schema.ts (new tables and schemas)"
+echo ""
+
+echo "📋 Step 4: Next Steps:"
+echo "   1. Run the SQL migration in Supabase:"
+echo "      - Go to Supabase Dashboard → SQL Editor"
+echo "      - Create New Query"
+echo "      - Copy & paste contents of doctors-appointments-migration.sql"
+echo "      - Click Run"
+echo ""
+echo "   2. Start your dev server:"
+echo "      npm run dev"
+echo ""
+echo "   3. Test the feature:"
+echo "      a) Create a DOCTOR account (sign up, select 'Doctor / Consultant')"
+echo "      b) Doctor should see calendar dashboard"
+echo "      c) Create an ASSISTANT account"
+echo "      d) Assistant should see main admin dashboard"
+echo ""
+
+echo "🎨 Features Included:"
+echo "   ✓ Google Calendar-like UI"
+echo "   ✓ Full month calendar view"
+echo "   ✓ Date navigation"
+echo "   ✓ Appointment color coding by status"
+echo "   ✓ Detailed appointment sidebar"
+echo "   ✓ Create/manage appointments"
+echo "   ✓ Patient assignment (optional)"
+echo "   ✓ Multiple appointment types"
+echo "   ✓ Status tracking"
+echo "   ✓ Role-based routing"
+echo ""
+
+echo "🔐 Security:"
+echo "   ✓ Row Level Security (RLS) enabled"
+echo "   ✓ Doctors can only see their own appointments"
+echo "   ✓ Auth-based access control"
+echo "   ✓ Session validation on all pages"
+echo ""
+
+echo "📚 Documentation:"
+echo "   - See DOCTOR_CALENDAR_SETUP.md for detailed setup guide"
+echo "   - Check database structure at the top of schema.ts"
+echo ""
+
+echo "🚀 You're all set!"

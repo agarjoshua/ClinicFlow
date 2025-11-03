@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PatientAvatar } from "@/components/patient-avatar";
 import { Badge } from "@/components/ui/badge";
 import type { Patient } from "@shared/schema";
 import {
@@ -46,35 +46,56 @@ export default function Patients() {
         .select()
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      
+      // Transform snake_case to camelCase
+      return (data ?? []).map((p: any) => ({
+        id: p.id,
+        patientNumber: p.patient_number,
+        firstName: p.first_name,
+        lastName: p.last_name,
+        dateOfBirth: p.date_of_birth,
+        age: p.age,
+        gender: p.gender,
+        phone: p.phone,
+        email: p.email,
+        address: p.address,
+        emergencyContact: p.emergency_contact,
+        emergencyContactPhone: p.emergency_contact_phone,
+        medicalHistory: p.medical_history,
+        allergies: p.allergies,
+        currentMedications: p.current_medications,
+        bloodType: p.blood_type,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
+      }));
     },
   });
 
   const filteredPatients = patients.filter((patient) => {
-    const name = patient.name ?? "";
-    const patientId = patient.patientId ?? "";
-    const contact = patient.contact ?? "";
+    const fullName = `${patient.firstName} ${patient.lastName}`.toLowerCase();
+    const patientNumber = (patient.patientNumber ?? "").toLowerCase();
+    const phone = patient.phone ?? "";
+    const email = patient.email ?? "";
+    
     const matchesSearch =
-      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.includes(searchTerm);
+      fullName.includes(searchTerm.toLowerCase()) ||
+      patientNumber.includes(searchTerm.toLowerCase()) ||
+      phone.includes(searchTerm) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "all" || patient.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const exportToCSV = () => {
-    const headers = ["Patient ID", "Name", "Age", "Gender", "Contact", "Status", "Admission Date"];
+    const headers = ["Patient Number", "Name", "Age", "Gender", "Phone", "Email", "Registration Date"];
     const rows = filteredPatients.map(p => [
-      p.patientId,
-      p.name,
-      p.age,
-      p.gender,
-      p.contact,
-      p.status,
-      format(new Date(p.admissionDate), 'yyyy-MM-dd')
+      p.patientNumber,
+      `${p.firstName} ${p.lastName}`,
+      p.age || "N/A",
+      p.gender || "N/A",
+      p.phone || "N/A",
+      p.email || "N/A",
+      p.createdAt ? format(new Date(p.createdAt), 'yyyy-MM-dd') : "N/A"
     ]);
     
     const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
@@ -168,47 +189,42 @@ export default function Patients() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-4">
-                      <Avatar className="w-12 h-12">
-                          <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                            {(() => {
-                              const name = patient.name ?? "";
-                              return name
-                                ? name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                                : "?";
-                            })()}
-                          </AvatarFallback>
-                      </Avatar>
+                      <PatientAvatar
+                        firstName={patient.firstName}
+                        lastName={patient.lastName}
+                        dateOfBirth={patient.dateOfBirth || undefined}
+                        age={patient.age || undefined}
+                        gender={patient.gender || undefined}
+                        size="md"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium truncate" data-testid={`text-patient-name-${patient.id}`}>{patient.name}</h3>
-                          <Badge variant={patient.status === "active" ? "default" : "secondary"} className="text-xs">
-                            {patient.status}
-                          </Badge>
+                          <h3 className="font-medium truncate" data-testid={`text-patient-name-${patient.id}`}>
+                            {patient.firstName} {patient.lastName}
+                          </h3>
                         </div>
-                        <p className="text-sm text-muted-foreground font-mono">{patient.patientId}</p>
+                        <p className="text-sm text-muted-foreground font-mono">{patient.patientNumber}</p>
                       </div>
                       <div className="hidden md:flex items-center gap-6 text-sm">
                         <div>
                           <p className="text-muted-foreground">Age</p>
-                          <p className="font-medium">{patient.age}</p>
+                          <p className="font-medium">{patient.age || "N/A"}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Gender</p>
-                          <p className="font-medium">{patient.gender}</p>
+                          <p className="font-medium">{patient.gender || "N/A"}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">Contact</p>
-                          <p className="font-medium">{patient.contact}</p>
+                          <p className="text-muted-foreground">Phone</p>
+                          <p className="font-medium">{patient.phone || "N/A"}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">Admitted</p>
+                          <p className="text-muted-foreground">Registered</p>
                           <p className="font-medium">
-                            {(() => {
-                              const date = patient.admissionDate ? new Date(patient.admissionDate) : null;
-                              return date && !isNaN(date.getTime())
-                                ? format(date, 'MMM dd, yyyy')
-                                : "N/A";
-                            })()}
+                            {patient.createdAt 
+                              ? format(new Date(patient.createdAt), 'MMM dd, yyyy')
+                              : "N/A"
+                            }
                           </p>
                         </div>
                       </div>

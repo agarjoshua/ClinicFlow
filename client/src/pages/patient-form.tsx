@@ -1,18 +1,8 @@
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Save } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -22,283 +12,362 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { insertPatientSchema, type InsertPatient } from "@shared/schema";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function PatientForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const form = useForm<InsertPatient>({
-    resolver: zodResolver(insertPatientSchema),
-    defaultValues: {
-      name: "",
-      age: 0,
-      gender: "Male",
-      contact: "",
-      emergencyContact: "",
-      address: "",
-      medicalHistory: "",
-      allergies: "",
-      currentMedications: "",
-    },
-  });
+  // Personal Information
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState<Date>();
+  const [gender, setGender] = useState<"Male" | "Female" | "Other">();
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
 
-  const createPatientMutation = useMutation({
-    mutationFn: async (data: InsertPatient) => {
-      // Get sequence number
-      const { data: seqData, error: seqError } = await supabase
-        .from("patient_sequence")
-        .insert({})
-        .select("id")
-        .single();
-      if (seqError) throw seqError;
-      const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const patientNumber = String(seqData.id).padStart(3, '0');
-      const generatedPatientId = `P-${date}-${patientNumber}`;
-      // Create patient record
-      const patientData = {
-        ...data,
-        patient_id: generatedPatientId,
-      };
-      const { error } = await supabase
+  // Emergency Contact
+  const [emergencyContact, setEmergencyContact] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+
+  // Medical Information
+  const [medicalHistory, setMedicalHistory] = useState("");
+  const [allergies, setAllergies] = useState("");
+  const [currentMedications, setCurrentMedications] = useState("");
+  const [bloodType, setBloodType] = useState("");
+
+  // Generate patient number
+  const generatePatientNumber = () => {
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `P${timestamp}${random}`;
+  };
+
+  // Calculate age from date of birth
+  const calculateAge = (dob: Date) => {
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Register patient mutation
+  const registerPatient = useMutation({
+    mutationFn: async () => {
+      const patientNumber = generatePatientNumber();
+      const age = dateOfBirth ? calculateAge(dateOfBirth) : null;
+
+      const { data, error } = await supabase
         .from("patients")
-        .insert(patientData);
+        .insert([
+          {
+            patient_number: patientNumber,
+            first_name: firstName,
+            last_name: lastName,
+            date_of_birth: dateOfBirth ? format(dateOfBirth, "yyyy-MM-dd") : null,
+            age: age !== null ? age : undefined, // Use undefined instead of null for optional integer
+            gender: gender || null,
+            phone: phone || null,
+            email: email || null,
+            address: address || null,
+            emergency_contact: emergencyContact || null,
+            emergency_contact_phone: emergencyPhone || null,
+            medical_history: medicalHistory || null,
+            allergies: allergies || null,
+            current_medications: currentMedications || null,
+            blood_type: bloodType || null,
+          },
+        ])
+        .select()
+        .single();
+
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
-      queryClient.invalidateQueries({ queryKey: ["patients-recent"] });
+    onSuccess: (data) => {
       toast({
-        title: "Success",
-        description: "Patient registered successfully",
+        title: "Patient Registered",
+        description: `Patient ${data.patient_number} has been successfully registered.`,
       });
       setLocation("/patients");
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to register patient",
         variant: "destructive",
       });
     },
   });
 
-  const onSubmit = (data: InsertPatient) => {
-    createPatientMutation.mutate(data);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    registerPatient.mutate();
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
-          size="icon"
+          size="sm"
           onClick={() => setLocation("/patients")}
-          data-testid="button-back"
+          className="flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
+          Back to Patients
         </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">Register New Patient</h1>
-          <p className="text-sm text-muted-foreground">Enter patient information</p>
-        </div>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} data-testid="input-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Age *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="30"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                          data-testid="input-age"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Gender *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-gender">
-                            <SelectValue placeholder="Select gender" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="contact"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Number *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+1 (555) 123-4567" {...field} data-testid="input-contact" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="emergencyContact"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Emergency Contact *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+1 (555) 987-6543" {...field} data-testid="input-emergency-contact" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Address *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="123 Main St, City, State, ZIP" {...field} data-testid="input-address" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Register New Patient</h1>
+        <p className="text-gray-600 mt-1">Add a new patient to the system</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Personal Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Personal Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  First Name *
+                </label>
+                <Input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="John"
+                  required
                 />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Last Name *
+                </label>
+                <Input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Doe"
+                  required
+                />
+              </div>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Medical Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="medicalHistory"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Medical History</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Previous conditions, surgeries, etc."
-                        className="min-h-24 resize-none"
-                        {...field}
-                        data-testid="textarea-medical-history"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="allergies"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Allergies</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="List any known allergies"
-                        className="min-h-20 resize-none"
-                        {...field}
-                        data-testid="textarea-allergies"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="currentMedications"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current Medications</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="List current medications and dosages"
-                        className="min-h-20 resize-none"
-                        {...field}
-                        data-testid="textarea-medications"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date of Birth
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${
+                        !dateOfBirth && "text-muted-foreground"
+                      }`}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateOfBirth ? format(dateOfBirth, "PPP") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={dateOfBirth}
+                      onSelect={setDateOfBirth}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                      captionLayout="dropdown-buttons"
+                      fromYear={1900}
+                      toYear={new Date().getFullYear()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setLocation("/patients")}
-              data-testid="button-cancel"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={createPatientMutation.isPending} data-testid="button-submit">
-              {createPatientMutation.isPending ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Register Patient
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-      </Form>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender
+                </label>
+                <Select value={gender} onValueChange={(val: "Male" | "Female" | "Other") => setGender(val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone
+                </label>
+                <Input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="patient@email.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Address
+              </label>
+              <Textarea
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="123 Main Street, City, Country"
+                rows={2}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Emergency Contact */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Emergency Contact</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Contact Name
+                </label>
+                <Input
+                  value={emergencyContact}
+                  onChange={(e) => setEmergencyContact(e.target.value)}
+                  placeholder="Jane Doe"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Contact Phone
+                </label>
+                <Input
+                  type="tel"
+                  value={emergencyPhone}
+                  onChange={(e) => setEmergencyPhone(e.target.value)}
+                  placeholder="+1 (555) 987-6543"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Medical Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Medical Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Medical History
+              </label>
+              <Textarea
+                value={medicalHistory}
+                onChange={(e) => setMedicalHistory(e.target.value)}
+                placeholder="Previous surgeries, chronic conditions, etc."
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Allergies
+              </label>
+              <Textarea
+                value={allergies}
+                onChange={(e) => setAllergies(e.target.value)}
+                placeholder="Drug allergies, food allergies, etc."
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Current Medications
+              </label>
+              <Textarea
+                value={currentMedications}
+                onChange={(e) => setCurrentMedications(e.target.value)}
+                placeholder="List all current medications and dosages"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Blood Type
+              </label>
+              <Select value={bloodType} onValueChange={setBloodType}>
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="Select blood type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A+">A+</SelectItem>
+                  <SelectItem value="A-">A-</SelectItem>
+                  <SelectItem value="B+">B+</SelectItem>
+                  <SelectItem value="B-">B-</SelectItem>
+                  <SelectItem value="AB+">AB+</SelectItem>
+                  <SelectItem value="AB-">AB-</SelectItem>
+                  <SelectItem value="O+">O+</SelectItem>
+                  <SelectItem value="O-">O-</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <Button
+            type="submit"
+            disabled={registerPatient.isPending || !firstName || !lastName}
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+          >
+            {registerPatient.isPending ? "Registering..." : "Register Patient"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setLocation("/patients")}
+          >
+            Cancel
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

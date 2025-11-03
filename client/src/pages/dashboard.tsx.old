@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
-import { Users, UserPlus, Activity, UserCheck } from "lucide-react";
+import { Users, UserPlus, Activity, UserCheck, Stethoscope } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import type { Patient } from "@shared/schema";
+import type { Patient, Doctor } from "@shared/schema";
 
 export default function Dashboard() {
   const [session, setSession] = useState<any>(null);
@@ -38,6 +38,18 @@ export default function Dashboard() {
         .from("patients")
         .select()
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: doctors = [] } = useQuery<Doctor[]>({
+    queryKey: ["doctors"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("doctors")
+        .select()
+        .order("name", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -90,6 +102,13 @@ export default function Dashboard() {
       color: "text-chart-3",
     },
     {
+      title: "Doctors",
+      value: doctors.length,
+      icon: Stethoscope,
+      description: "Active consultants",
+      color: "text-chart-1",
+    },
+    {
       title: "Discharged",
       value: dischargedPatients.length,
       icon: UserCheck,
@@ -125,6 +144,10 @@ export default function Dashboard() {
           <Button onClick={() => setLocation("/patients/new")} data-testid="button-new-patient">
             <UserPlus className="w-4 h-4 mr-2" />
             New Patient
+          </Button>
+          <Button variant="outline" onClick={() => setLocation("/doctors")} data-testid="button-view-doctors">
+            <Stethoscope className="w-4 h-4 mr-2" />
+            View Doctors
           </Button>
         </div>
       </div>

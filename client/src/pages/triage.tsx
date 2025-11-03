@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { PatientAvatar } from "@/components/patient-avatar";
 import {
   Select,
@@ -29,37 +30,33 @@ import {
   Hospital,
   Search,
   AlertCircle,
+  CheckCircle,
+  UserCircle,
+  Stethoscope,
+  ClipboardList,
+  ArrowUpCircle,
   Eye,
   Activity,
   Thermometer,
   Heart,
   Wind,
-  Brain,
-  Pill,
-  FileText,
-  Stethoscope,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
-export default function Diagnoses() {
+export default function Triage() {
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [hospitalFilter, setHospitalFilter] = useState("all");
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
-  const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
+  const [triageDialogOpen, setTriageDialogOpen] = useState(false);
+  const [triageNotes, setTriageNotes] = useState("");
+  const [isPriority, setIsPriority] = useState(false);
+  const [priorityReason, setPriorityReason] = useState("");
   
-  // Diagnosis form state
-  const [symptoms, setSymptoms] = useState("");
-  const [diagnosisNotes, setDiagnosisNotes] = useState("");
-  const [neurologicalExam, setNeurologicalExam] = useState("");
-  const [imagingFindings, setImagingFindings] = useState("");
-  const [medications, setMedications] = useState("");
-  const [treatmentPlan, setTreatmentPlan] = useState("");
-  
-  // Re-measured vital signs
+  // Vital signs state
   const [temperature, setTemperature] = useState("");
   const [bloodPressure, setBloodPressure] = useState("");
   const [heartRate, setHeartRate] = useState("");
@@ -67,9 +64,9 @@ export default function Diagnoses() {
   
   const { toast } = useToast();
 
-  // Fetch confirmed appointments (ready for diagnosis)
+  // Fetch confirmed appointments (ready for triage)
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["diagnosis-appointments", hospitalFilter],
+    queryKey: ["triage-appointments", hospitalFilter],
     queryFn: async () => {
       let query = supabase
         .from("appointments")
@@ -167,119 +164,101 @@ export default function Diagnoses() {
     },
   });
 
-  // Create diagnosis mutation
-  const diagnosisMutation = useMutation({
+  // Update triage mutation
+  const triageMutation = useMutation({
     mutationFn: async ({
       appointmentId,
-      patientId,
-      diagnosis,
+      notes,
+      priority,
+      reason,
+      confirmStatus,
+      vitalSigns,
     }: {
       appointmentId: string;
-      patientId: string;
-      diagnosis: any;
+      notes: string;
+      priority: boolean;
+      reason: string;
+      confirmStatus: boolean;
+      vitalSigns: {
+        temperature: string;
+        bloodPressure: string;
+        heartRate: string;
+        oxygenSaturation: string;
+      };
     }) => {
-      // Get current user to set as consultant
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No authenticated user");
+      const updateData: any = {
+        triage_notes: notes,
+        is_priority: priority,
+        priority_reason: reason,
+        temperature: vitalSigns.temperature || null,
+        blood_pressure: vitalSigns.bloodPressure || null,
+        heart_rate: vitalSigns.heartRate ? parseInt(vitalSigns.heartRate) : null,
+        oxygen_saturation: vitalSigns.oxygenSaturation ? parseInt(vitalSigns.oxygenSaturation) : null,
+      };
 
-      // Get user's consultant record
-      const { data: userData } = await supabase
-        .from("users")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
+      if (confirmStatus) {
+        updateData.status = "confirmed";
+      }
 
-      if (!userData) throw new Error("User record not found");
-
-      // Create clinical case
-      const { data: clinicalCase, error: caseError } = await supabase
-        .from("clinical_cases")
-        .insert({
-          patient_id: patientId,
-          appointment_id: appointmentId,
-          consultant_id: userData.id,
-          symptoms: diagnosis.symptoms,
-          diagnosis_notes: diagnosis.diagnosisNotes,
-          neurological_exam: diagnosis.neurologicalExam,
-          imaging_findings: diagnosis.imagingFindings,
-          medications: diagnosis.medications,
-          treatment_plan: diagnosis.treatmentPlan,
-          temperature: diagnosis.temperature || null,
-          blood_pressure: diagnosis.bloodPressure || null,
-          heart_rate: diagnosis.heartRate ? parseInt(diagnosis.heartRate) : null,
-          oxygen_saturation: diagnosis.oxygenSaturation ? parseInt(diagnosis.oxygenSaturation) : null,
-        })
-        .select()
-        .single();
-
-      if (caseError) throw caseError;
-
-      // Update appointment status to "seen"
-      const { error: updateError } = await supabase
+      const { error } = await supabase
         .from("appointments")
-        .update({ status: "seen" })
+        .update(updateData)
         .eq("id", appointmentId);
 
-      if (updateError) throw updateError;
-
-      return clinicalCase;
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["diagnosis-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["triage-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast({
         title: "Success",
-        description: "Diagnosis recorded successfully",
+        description: "Triage completed successfully",
       });
-      setDiagnosisDialogOpen(false);
-      resetDiagnosisForm();
+      setTriageDialogOpen(false);
+      resetTriageForm();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to record diagnosis",
+        description: error.message || "Failed to complete triage",
         variant: "destructive",
       });
-      console.error("Diagnosis error:", error);
     },
   });
 
-  const openDiagnosisDialog = (appointment: any) => {
+  const openTriageDialog = (appointment: any) => {
     setSelectedAppointment(appointment);
-    // Pre-fill with triage vital signs
+    setTriageNotes(appointment.triageNotes || "");
+    setIsPriority(appointment.isPriority || false);
+    setPriorityReason(appointment.priorityReason || "");
     setTemperature(appointment.temperature || "");
     setBloodPressure(appointment.bloodPressure || "");
     setHeartRate(appointment.heartRate?.toString() || "");
     setOxygenSaturation(appointment.oxygenSaturation?.toString() || "");
-    setDiagnosisDialogOpen(true);
+    setTriageDialogOpen(true);
   };
 
-  const resetDiagnosisForm = () => {
+  const resetTriageForm = () => {
     setSelectedAppointment(null);
-    setSymptoms("");
-    setDiagnosisNotes("");
-    setNeurologicalExam("");
-    setImagingFindings("");
-    setMedications("");
-    setTreatmentPlan("");
+    setTriageNotes("");
+    setIsPriority(false);
+    setPriorityReason("");
     setTemperature("");
     setBloodPressure("");
     setHeartRate("");
     setOxygenSaturation("");
   };
 
-  const handleSaveDiagnosis = () => {
+  const handleSaveTriage = (confirmStatus: boolean) => {
     if (!selectedAppointment) return;
 
-    diagnosisMutation.mutate({
+    triageMutation.mutate({
       appointmentId: selectedAppointment.id,
-      patientId: selectedAppointment.patient.id,
-      diagnosis: {
-        symptoms,
-        diagnosisNotes,
-        neurologicalExam,
-        imagingFindings,
-        medications,
-        treatmentPlan,
+      notes: triageNotes,
+      priority: isPriority,
+      reason: priorityReason,
+      confirmStatus,
+      vitalSigns: {
         temperature,
         bloodPressure,
         heartRate,
@@ -288,21 +267,22 @@ export default function Diagnoses() {
     });
   };
 
-  // Filter appointments by search term
-  const filteredAppointments = appointments.filter((apt: any) => {
-    const searchLower = searchTerm.toLowerCase();
-    const patientName = `${apt.patient?.firstName} ${apt.patient?.lastName}`.toLowerCase();
-    const patientNumber = apt.patient?.patientNumber?.toLowerCase() || "";
-    const chiefComplaint = apt.chiefComplaint?.toLowerCase() || "";
-    
+  // Filter appointments by search
+  const filteredAppointments = appointments.filter((appointment: any) => {
+    const patientName = appointment.patient
+      ? `${appointment.patient.firstName} ${appointment.patient.lastName}`.toLowerCase()
+      : "";
+    const patientNumber = appointment.patient?.patientNumber?.toLowerCase() || "";
+    const chiefComplaint = appointment.chiefComplaint?.toLowerCase() || "";
+
     return (
-      patientName.includes(searchLower) ||
-      patientNumber.includes(searchLower) ||
-      chiefComplaint.includes(searchLower)
+      patientName.includes(searchTerm.toLowerCase()) ||
+      patientNumber.includes(searchTerm.toLowerCase()) ||
+      chiefComplaint.includes(searchTerm.toLowerCase())
     );
   });
 
-  // Separate priority and regular appointments
+  // Group by priority
   const priorityAppointments = filteredAppointments.filter((a: any) => a.isPriority);
   const regularAppointments = filteredAppointments.filter((a: any) => !a.isPriority);
 
@@ -311,7 +291,7 @@ export default function Diagnoses() {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-2">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading appointments...</p>
+          <p className="text-sm text-muted-foreground">Loading triage queue...</p>
         </div>
       </div>
     );
@@ -322,12 +302,12 @@ export default function Diagnoses() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Diagnosis</h1>
-          <p className="text-gray-600 mt-1">Record diagnosis for confirmed appointments</p>
+          <h1 className="text-3xl font-bold text-gray-900">Triage</h1>
+          <p className="text-gray-600 mt-1">Process and prioritize appointments</p>
         </div>
         <div className="flex gap-2">
           <Badge variant="outline" className="text-lg px-4 py-2">
-            <Brain className="w-5 h-5 mr-2" />
+            <Stethoscope className="w-5 h-5 mr-2" />
             {filteredAppointments.length} Pending
           </Badge>
           {priorityAppointments.length > 0 && (
@@ -380,10 +360,10 @@ export default function Diagnoses() {
             <h2 className="text-xl font-bold text-red-600">Priority Cases</h2>
           </div>
           {priorityAppointments.map((appointment: any) => (
-            <AppointmentDiagnosisCard
+            <AppointmentTriageCard
               key={appointment.id}
               appointment={appointment}
-              onDiagnose={() => openDiagnosisDialog(appointment)}
+              onTriage={() => openTriageDialog(appointment)}
               onViewPatient={() => setLocation(`/patients/${appointment.patient?.id}`)}
             />
           ))}
@@ -394,15 +374,15 @@ export default function Diagnoses() {
       <div className="space-y-3">
         {priorityAppointments.length > 0 && (
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-gray-600" />
+            <ClipboardList className="w-5 h-5 text-gray-600" />
             <h2 className="text-xl font-bold text-gray-900">Regular Queue</h2>
           </div>
         )}
         {regularAppointments.length === 0 && priorityAppointments.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <Brain className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No appointments ready for diagnosis</p>
+              <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500">No appointments pending triage</p>
             </CardContent>
           </Card>
         ) : regularAppointments.length === 0 ? (
@@ -413,213 +393,230 @@ export default function Diagnoses() {
           </Card>
         ) : (
           regularAppointments.map((appointment: any) => (
-            <AppointmentDiagnosisCard
+            <AppointmentTriageCard
               key={appointment.id}
               appointment={appointment}
-              onDiagnose={() => openDiagnosisDialog(appointment)}
+              onTriage={() => openTriageDialog(appointment)}
               onViewPatient={() => setLocation(`/patients/${appointment.patient?.id}`)}
             />
           ))
         )}
       </div>
 
-      {/* Diagnosis Dialog */}
-      <Dialog open={diagnosisDialogOpen} onOpenChange={setDiagnosisDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {/* Triage Dialog */}
+      <Dialog open={triageDialogOpen} onOpenChange={setTriageDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Stethoscope className="w-5 h-5" />
-              Record Diagnosis
-            </DialogTitle>
+            <DialogTitle>Triage Assessment</DialogTitle>
             <DialogDescription>
-              Patient: {selectedAppointment?.patient?.firstName} {selectedAppointment?.patient?.lastName} 
-              {" "}(#{selectedAppointment?.patient?.patientNumber})
+              Complete triage for{" "}
+              {selectedAppointment?.patient?.firstName}{" "}
+              {selectedAppointment?.patient?.lastName}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Vital Signs */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Vital Signs (Re-measured)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <Label className="text-xs flex items-center gap-1">
-                      <Thermometer className="w-3 h-3" />
-                      Temperature
-                    </Label>
-                    <Input
-                      placeholder="98.6°F"
-                      value={temperature}
-                      onChange={(e) => setTemperature(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs flex items-center gap-1">
-                      <Heart className="w-3 h-3" />
-                      Blood Pressure
-                    </Label>
-                    <Input
-                      placeholder="120/80"
-                      value={bloodPressure}
-                      onChange={(e) => setBloodPressure(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs flex items-center gap-1">
-                      <Activity className="w-3 h-3" />
-                      Heart Rate
-                    </Label>
-                    <Input
-                      type="number"
-                      placeholder="72"
-                      value={heartRate}
-                      onChange={(e) => setHeartRate(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs flex items-center gap-1">
-                      <Wind className="w-3 h-3" />
-                      O2 Saturation
-                    </Label>
-                    <Input
-                      type="number"
-                      placeholder="98"
-                      value={oxygenSaturation}
-                      onChange={(e) => setOxygenSaturation(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Patient History */}
-            {selectedAppointment?.patient && (
-              <Card className="bg-blue-50">
+          {selectedAppointment && (
+            <div className="space-y-4">
+              {/* Patient Info */}
+              <Card>
                 <CardContent className="p-4">
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium">Chief Complaint: </span>
-                      {selectedAppointment.chiefComplaint}
+                  <div className="flex items-start gap-4">
+                    <PatientAvatar
+                      firstName={selectedAppointment.patient?.firstName}
+                      lastName={selectedAppointment.patient?.lastName}
+                      dateOfBirth={selectedAppointment.patient?.dateOfBirth}
+                      age={selectedAppointment.patient?.age}
+                      gender={selectedAppointment.patient?.gender}
+                      size="lg"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg">
+                        {selectedAppointment.patient?.firstName}{" "}
+                        {selectedAppointment.patient?.lastName}
+                      </h3>
+                      <p className="text-sm text-gray-600 font-mono">
+                        {selectedAppointment.patient?.patientNumber}
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                        <span>Age: {selectedAppointment.patient?.age || "N/A"}</span>
+                        <span>•</span>
+                        <span>Gender: {selectedAppointment.patient?.gender || "N/A"}</span>
+                        <span>•</span>
+                        <span>Queue: #{selectedAppointment.bookingNumber}</span>
+                      </div>
                     </div>
-                    {selectedAppointment.patient.allergies && (
-                      <div>
-                        <span className="font-medium text-red-600">⚠️ Allergies: </span>
-                        {selectedAppointment.patient.allergies}
+                  </div>
+
+                  {/* Chief Complaint */}
+                  <div className="mt-4 bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700">Chief Complaint:</p>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {selectedAppointment.chiefComplaint}
+                    </p>
+                  </div>
+
+                  {/* Allergies & Medications */}
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    {selectedAppointment.patient?.allergies && (
+                      <div className="bg-red-50 p-3 rounded-lg">
+                        <p className="text-xs font-medium text-red-700">⚠️ Allergies:</p>
+                        <p className="text-sm text-red-900">
+                          {selectedAppointment.patient.allergies}
+                        </p>
                       </div>
                     )}
-                    {selectedAppointment.patient.currentMedications && (
-                      <div>
-                        <span className="font-medium">Current Medications: </span>
-                        {selectedAppointment.patient.currentMedications}
-                      </div>
-                    )}
-                    {selectedAppointment.triageNotes && (
-                      <div>
-                        <span className="font-medium">Triage Notes: </span>
-                        {selectedAppointment.triageNotes}
+                    {selectedAppointment.patient?.currentMedications && (
+                      <div className="bg-purple-50 p-3 rounded-lg">
+                        <p className="text-xs font-medium text-purple-700">💊 Current Medications:</p>
+                        <p className="text-sm text-purple-900">
+                          {selectedAppointment.patient.currentMedications}
+                        </p>
                       </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
-            )}
 
-            {/* Clinical Assessment */}
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="symptoms">Symptoms</Label>
-                <Textarea
-                  id="symptoms"
-                  placeholder="Document presenting symptoms..."
-                  value={symptoms}
-                  onChange={(e) => setSymptoms(e.target.value)}
-                  rows={3}
-                />
-              </div>
+              {/* Triage Form */}
+              <div className="space-y-4">
+                {/* Vital Signs Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Activity className="w-4 h-4" />
+                      Vital Signs
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label htmlFor="temperature" className="flex items-center gap-2 text-xs">
+                          <Thermometer className="w-3 h-3" />
+                          Temperature
+                        </Label>
+                        <Input
+                          id="temperature"
+                          value={temperature}
+                          onChange={(e) => setTemperature(e.target.value)}
+                          placeholder="98.6°F"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="bloodPressure" className="flex items-center gap-2 text-xs">
+                          <Heart className="w-3 h-3" />
+                          BP
+                        </Label>
+                        <Input
+                          id="bloodPressure"
+                          value={bloodPressure}
+                          onChange={(e) => setBloodPressure(e.target.value)}
+                          placeholder="120/80"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="heartRate" className="flex items-center gap-2 text-xs">
+                          <Activity className="w-3 h-3" />
+                          HR (bpm)
+                        </Label>
+                        <Input
+                          id="heartRate"
+                          type="number"
+                          value={heartRate}
+                          onChange={(e) => setHeartRate(e.target.value)}
+                          placeholder="72"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="oxygenSaturation" className="flex items-center gap-2 text-xs">
+                          <Wind className="w-3 h-3" />
+                          O2 (%)
+                        </Label>
+                        <Input
+                          id="oxygenSaturation"
+                          type="number"
+                          value={oxygenSaturation}
+                          onChange={(e) => setOxygenSaturation(e.target.value)}
+                          placeholder="98"
+                          max="100"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <div>
-                <Label htmlFor="neurologicalExam">Neurological Examination</Label>
-                <Textarea
-                  id="neurologicalExam"
-                  placeholder="Consciousness level, motor function, sensory function, reflexes, cranial nerves..."
-                  value={neurologicalExam}
-                  onChange={(e) => setNeurologicalExam(e.target.value)}
-                  rows={3}
-                />
-              </div>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <ArrowUpCircle className={`w-5 h-5 ${isPriority ? "text-red-600" : "text-gray-400"}`} />
+                    <div>
+                      <Label htmlFor="priority" className="font-medium">
+                        Mark as Priority
+                      </Label>
+                      <p className="text-xs text-gray-600">
+                        Urgent cases that need immediate attention
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="priority"
+                    checked={isPriority}
+                    onCheckedChange={setIsPriority}
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="imagingFindings">Imaging Findings</Label>
-                <Textarea
-                  id="imagingFindings"
-                  placeholder="MRI/CT scan findings, lesion location, mass effect, edema..."
-                  value={imagingFindings}
-                  onChange={(e) => setImagingFindings(e.target.value)}
-                  rows={3}
-                />
-              </div>
+                {isPriority && (
+                  <div>
+                    <Label htmlFor="priority-reason">Priority Reason *</Label>
+                    <Input
+                      id="priority-reason"
+                      value={priorityReason}
+                      onChange={(e) => setPriorityReason(e.target.value)}
+                      placeholder="e.g., Severe headache with vomiting, trauma case..."
+                      className="mt-1"
+                    />
+                  </div>
+                )}
 
-              <div>
-                <Label htmlFor="diagnosisNotes">Diagnosis Notes</Label>
-                <Textarea
-                  id="diagnosisNotes"
-                  placeholder="Final diagnosis and clinical impression..."
-                  value={diagnosisNotes}
-                  onChange={(e) => setDiagnosisNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="medications">Medications</Label>
-                <Textarea
-                  id="medications"
-                  placeholder="Prescribed medications, dosages, and frequency..."
-                  value={medications}
-                  onChange={(e) => setMedications(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="treatmentPlan">Treatment Plan</Label>
-                <Textarea
-                  id="treatmentPlan"
-                  placeholder="Treatment plan, follow-up, and recommendations..."
-                  value={treatmentPlan}
-                  onChange={(e) => setTreatmentPlan(e.target.value)}
-                  rows={3}
-                />
+                <div>
+                  <Label htmlFor="triage-notes">Triage Notes</Label>
+                  <Textarea
+                    id="triage-notes"
+                    value={triageNotes}
+                    onChange={(e) => setTriageNotes(e.target.value)}
+                    placeholder="Initial assessment, vital signs, presenting symptoms, triage level..."
+                    rows={6}
+                    className="mt-1"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
-              onClick={() => {
-                setDiagnosisDialogOpen(false);
-                resetDiagnosisForm();
-              }}
+              onClick={() => setTriageDialogOpen(false)}
+              disabled={triageMutation.isPending}
             >
               Cancel
             </Button>
             <Button
-              onClick={handleSaveDiagnosis}
-              disabled={diagnosisMutation.isPending}
+              variant="outline"
+              onClick={() => handleSaveTriage(false)}
+              disabled={triageMutation.isPending || (isPriority && !priorityReason)}
+            >
+              Save Draft
+            </Button>
+            <Button
+              onClick={() => handleSaveTriage(true)}
+              disabled={triageMutation.isPending || (isPriority && !priorityReason)}
               className="bg-green-600 hover:bg-green-700"
             >
-              {diagnosisMutation.isPending ? "Saving..." : "Save Diagnosis"}
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {triageMutation.isPending ? "Processing..." : "Confirm & Complete"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -629,13 +626,13 @@ export default function Diagnoses() {
 }
 
 // Appointment Card Component
-function AppointmentDiagnosisCard({
+function AppointmentTriageCard({
   appointment,
-  onDiagnose,
+  onTriage,
   onViewPatient,
 }: {
   appointment: any;
-  onDiagnose: () => void;
+  onTriage: () => void;
   onViewPatient: () => void;
 }) {
   return (
@@ -651,9 +648,9 @@ function AppointmentDiagnosisCard({
           />
 
           {/* Queue Number */}
-          <div className="flex flex-col items-center justify-center bg-purple-50 rounded-lg px-4 py-2">
+          <div className="flex flex-col items-center justify-center bg-blue-50 rounded-lg px-4 py-2">
             <span className="text-xs text-gray-600">Queue</span>
-            <span className="text-2xl font-bold text-purple-600">
+            <span className="text-2xl font-bold text-blue-600">
               #{appointment.bookingNumber}
             </span>
           </div>
@@ -718,10 +715,10 @@ function AppointmentDiagnosisCard({
               <p className="text-sm text-gray-900 font-medium">{appointment.chiefComplaint}</p>
             </div>
 
-            {/* Triage Vital Signs */}
+            {/* Vital Signs (if recorded) */}
             {(appointment.temperature || appointment.bloodPressure || appointment.heartRate || appointment.oxygenSaturation) && (
               <div className="bg-green-50 p-2 rounded-lg mb-2">
-                <p className="text-xs font-medium text-gray-700 mb-1">Triage Vital Signs:</p>
+                <p className="text-xs font-medium text-gray-700 mb-1">Vital Signs:</p>
                 <div className="flex items-center gap-3 text-xs">
                   {appointment.temperature && (
                     <div className="flex items-center gap-1">
@@ -767,12 +764,9 @@ function AppointmentDiagnosisCard({
 
           {/* Actions */}
           <div className="flex flex-col gap-2">
-            <Button
-              onClick={onDiagnose}
-              className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap"
-            >
-              <Brain className="w-4 h-4 mr-2" />
-              Diagnose
+            <Button onClick={onTriage} className="bg-blue-600 hover:bg-blue-700">
+              <Stethoscope className="w-4 h-4 mr-2" />
+              Triage
             </Button>
             <Button variant="outline" size="sm" onClick={onViewPatient}>
               <Eye className="w-4 h-4 mr-1" />

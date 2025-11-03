@@ -1,0 +1,225 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { supabase } from "@/lib/supabaseClient";
+import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Eye, Calendar } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import type { Doctor } from "@shared/schema";
+
+interface DoctorWithAppointments extends Doctor {
+  appointmentCount?: number;
+}
+
+export default function DoctorsView() {
+  const [, setLocation] = useLocation();
+  const [session, setSession] = useState<any>(null);
+  const [viewingDoctor, setViewingDoctor] = useState<DoctorWithAppointments | null>(null);
+
+  // Auth check
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) setLocation("/auth");
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch all doctors
+  const { data: doctors = [], isLoading } = useQuery<Doctor[]>({
+    queryKey: ["doctors"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("doctors")
+        .select()
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Fetch appointment counts for each doctor
+  const { data: appointmentCounts = {} } = useQuery({
+    queryKey: ["doctor-appointment-counts"],
+    enabled: doctors.length > 0,
+    queryFn: async () => {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        doctors.map(async (doctor) => {
+          const { count } = await supabase
+            .from("appointments")
+            .select("*", { count: "exact", head: true })
+            .eq("doctor_id", doctor.id)
+            .eq("status", "scheduled");
+          counts[doctor.id] = count || 0;
+        })
+      );
+      return counts;
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading doctors...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewingDoctor) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Button
+          variant="ghost"
+          onClick={() => setViewingDoctor(null)}
+          className="w-fit"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Doctors
+        </Button>
+
+        <div className="flex items-center gap-6">
+          <Avatar className="w-24 h-24">
+            <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+              {viewingDoctor.name
+                ?.split(" ")
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase() || "DR"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold">{viewingDoctor.name}</h1>
+            <p className="text-muted-foreground">{viewingDoctor.specialization || "General Practitioner"}</p>
+            {viewingDoctor.email && <p className="text-sm">{viewingDoctor.email}</p>}
+            {viewingDoctor.phone && <p className="text-sm">{viewingDoctor.phone}</p>}
+            {viewingDoctor.license_number && (
+              <p className="text-xs text-muted-foreground">License: {viewingDoctor.license_number}</p>
+            )}
+          </div>
+          <Button
+            onClick={() => setLocation("/doctor-calendar")}
+            className="h-fit"
+          >
+            <Calendar className="w-4 h-4 mr-2" />
+            View Calendar
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Appointments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Scheduled</p>
+                <p className="text-3xl font-bold">{appointmentCounts[viewingDoctor.id] || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Specialization</p>
+                <p className="text-lg font-semibold">{viewingDoctor.specialization || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <Badge className="mt-1">Active</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Doctors</h1>
+          <p className="text-muted-foreground">Manage and view doctor profiles</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setLocation("/")}>
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+
+      {doctors.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="text-4xl mb-3">👨‍⚕️</div>
+            <h3 className="text-lg font-medium mb-2">No Doctors Yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Create a doctor account to get started
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {doctors.map((doctor) => (
+            <Card key={doctor.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4 mb-4">
+                  <Avatar>
+                    <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                      {doctor.name
+                        ?.split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase() || "DR"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg">{doctor.name}</h3>
+                    <p className="text-sm text-muted-foreground">{doctor.specialization || "General Practitioner"}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  {doctor.email && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Email:</span> {doctor.email}
+                    </p>
+                  )}
+                  {doctor.phone && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Phone:</span> {doctor.phone}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-4 p-2 bg-slate-50 rounded">
+                  <p className="text-sm">
+                    <span className="font-medium text-chart-2">{appointmentCounts[doctor.id] || 0}</span>
+                    <span className="text-muted-foreground"> scheduled appointments</span>
+                  </p>
+                </div>
+
+                <Button
+                  onClick={() => setViewingDoctor(doctor)}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Profile
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
