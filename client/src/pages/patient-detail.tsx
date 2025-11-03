@@ -27,6 +27,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { 
   ArrowLeft, 
   User, 
@@ -44,7 +58,15 @@ import {
   Edit,
   Trash2,
   Save,
-  X
+  X,
+  Image,
+  Video,
+  Link,
+  Eye,
+  Download,
+  Brain,
+  Plus,
+  Upload,
 } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import { format, differenceInYears } from "date-fns";
@@ -59,6 +81,16 @@ export default function PatientDetail() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedPatient, setEditedPatient] = useState<any>(null);
+  const [selectedMedia, setSelectedMedia] = useState<any>(null);
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+  
+  // Media management state
+  const [addMediaDialogOpen, setAddMediaDialogOpen] = useState(false);
+  const [selectedCaseForMedia, setSelectedCaseForMedia] = useState<any>(null);
+  const [newMediaFile, setNewMediaFile] = useState<File | null>(null);
+  const [newMediaType, setNewMediaType] = useState<"image" | "video" | "link">("image");
+  const [newMediaLink, setNewMediaLink] = useState("");
+  const [newMediaDescription, setNewMediaDescription] = useState("");
 
   // Smart back navigation
   const handleBack = () => {
@@ -143,6 +175,38 @@ export default function PatientDetail() {
     enabled: !!patientId,
   });
 
+  // Query for clinical cases (diagnoses) with media
+  const { data: clinicalCases = [] } = useQuery({
+    queryKey: ["patient-clinical-cases", patientId],
+    queryFn: async () => {
+      const { data: casesData, error: casesError } = await supabase
+        .from("clinical_cases")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("case_date", { ascending: false });
+
+      if (casesError) throw casesError;
+
+      // Fetch medical images for each clinical case
+      const casesWithImages = await Promise.all(
+        (casesData || []).map(async (clinicalCase: any) => {
+          const { data: imagesData, error: imagesError } = await supabase
+            .from("medical_images")
+            .select("*")
+            .eq("clinical_case_id", clinicalCase.id);
+
+          return {
+            ...clinicalCase,
+            medical_images: imagesError ? [] : (imagesData || []),
+          };
+        })
+      );
+
+      return casesWithImages;
+    },
+    enabled: !!patientId,
+  });
+
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (updatedData: any) => {
@@ -212,6 +276,131 @@ export default function PatientDetail() {
     },
   });
 
+  // Add media mutation
+  const addMediaMutation = useMutation({
+    mutationFn: async ({
+      clinicalCaseId,
+      file,
+      type,
+      link,
+      description,
+    }: {
+      clinicalCaseId: string;
+      file: File | null;
+      type: "image" | "video" | "link";
+      link: string;
+      description: string;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No authenticated user");
+
+      const { data: userData } = await supabase
+        .from("users")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!userData) throw new Error("User record not found");
+
+      let fileUrl = link;
+
+      if (file) {
+        const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${Date.now()}-${clinicalCaseId}-${sanitizedFileName}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("medical-media")
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            contentType: file.type || 'application/octet-stream'
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrl } = supabase.storage
+          .from("medical-media")
+          .getPublicUrl(fileName);
+
+        fileUrl = publicUrl.publicUrl;
+      }
+
+      const { error } = await supabase.from("medical_images").insert({
+        clinical_case_id: clinicalCaseId,
+        file_type: type,
+        image_type: "Photo", // Valid DB constraint value (MRI, CT, X-Ray, Ultrasound, Photo)
+        image_url: fileUrl, // Changed from file_url to image_url (actual DB column name)
+        file_name: file?.name || "Link",
+        file_size: file?.size || null,
+        description: description, // User's description goes here
+        uploaded_by: userData.id,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+      setAddMediaDialogOpen(false);
+      setNewMediaFile(null);
+      setNewMediaLink("");
+      setNewMediaDescription("");
+      toast({
+        title: "Success",
+        description: "Media added successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add media",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete media mutation
+  const deleteMediaMutation = useMutation({
+    mutationFn: async (mediaId: string) => {
+      // Get media details first to delete file from storage
+      const { data: media } = await supabase
+        .from("medical_images")
+        .select("image_url, file_type")
+        .eq("id", mediaId)
+        .single();
+
+      // Delete from storage if it's a file (not a link)
+      if (media && media.file_type !== "link" && media.image_url) {
+        const fileName = media.image_url.split('/').pop();
+        if (fileName) {
+          await supabase.storage
+            .from("medical-media")
+            .remove([fileName]);
+        }
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from("medical_images")
+        .delete()
+        .eq("id", mediaId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+      toast({
+        title: "Success",
+        description: "Media deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete media",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize edited patient when data loads
   if (patient && !editedPatient && !isEditing) {
     setEditedPatient(patient);
@@ -233,6 +422,47 @@ export default function PatientDetail() {
 
   const handleDelete = () => {
     deleteMutation.mutate();
+  };
+
+  const handleAddMedia = (clinicalCase: any) => {
+    setSelectedCaseForMedia(clinicalCase);
+    setAddMediaDialogOpen(true);
+  };
+
+  const handleUploadMedia = () => {
+    if (!selectedCaseForMedia) return;
+    
+    if (newMediaType === "link" && !newMediaLink.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a link URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if ((newMediaType === "image" || newMediaType === "video") && !newMediaFile) {
+      toast({
+        title: "Error",
+        description: "Please select a file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addMediaMutation.mutate({
+      clinicalCaseId: selectedCaseForMedia.id,
+      file: newMediaFile,
+      type: newMediaType,
+      link: newMediaLink,
+      description: newMediaDescription,
+    });
+  };
+
+  const handleDeleteMedia = (mediaId: string) => {
+    if (confirm("Are you sure you want to delete this media?")) {
+      deleteMediaMutation.mutate(mediaId);
+    }
   };
 
   const handleInputChange = (field: string, value: any) => {
@@ -677,6 +907,229 @@ export default function PatientDetail() {
         </CardContent>
       </Card>
 
+      {/* Clinical Cases (Diagnoses) - Redesigned */}
+      <Card>
+        <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
+          <CardTitle className="flex items-center gap-2 text-indigo-900">
+            <Brain className="w-6 h-6" />
+            Clinical Cases & Medical Records
+          </CardTitle>
+          <p className="text-sm text-indigo-700 mt-1">
+            {clinicalCases.length} {clinicalCases.length === 1 ? 'case' : 'cases'} recorded
+          </p>
+        </CardHeader>
+        <CardContent className="p-6">
+          {clinicalCases.length === 0 ? (
+            <div className="text-center py-12">
+              <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 font-medium">No clinical cases recorded yet</p>
+              <p className="text-gray-400 text-sm mt-2">Diagnoses will appear here once recorded</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {clinicalCases.map((clinicalCase: any, index: number) => (
+                <div key={clinicalCase.id} className="border-l-4 border-indigo-500 bg-white rounded-r-lg shadow-sm hover:shadow-md transition-shadow">
+                  {/* Case Header with Media Preview */}
+                  <div className="p-5">
+                    <div className="flex items-start gap-4">
+                      {/* Media Preview Thumbnail - Prominent Position */}
+                      {clinicalCase.medical_images && clinicalCase.medical_images.length > 0 && (
+                        <div className="flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              setSelectedMedia(clinicalCase.medical_images[0]);
+                              setMediaDialogOpen(true);
+                            }}
+                            className="relative group w-32 h-32 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all"
+                          >
+                            {clinicalCase.medical_images[0].file_type === "image" ? (
+                              <img 
+                                src={clinicalCase.medical_images[0].image_url} 
+                                alt="Case preview"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : clinicalCase.medical_images[0].file_type === "video" ? (
+                              <div className="w-full h-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+                                <Video className="w-12 h-12 text-white" />
+                              </div>
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                                <Link className="w-12 h-12 text-white" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center transition-all">
+                              <Eye className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            {clinicalCase.medical_images.length > 1 && (
+                              <div className="absolute top-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                +{clinicalCase.medical_images.length - 1}
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Case Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">
+                              {clinicalCase.diagnosis_notes || `Case #${index + 1}`}
+                            </h3>
+                            <div className="flex items-center gap-3 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <UserCircle className="w-4 h-4" />
+                                {clinicalCase.consultant?.name || "Unknown"}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                {clinicalCase.case_date
+                                  ? format(new Date(clinicalCase.case_date), "MMM dd, yyyy")
+                                  : "No date"}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              clinicalCase.status === "active" 
+                                ? "bg-green-50 text-green-700 border-green-300" 
+                                : "bg-gray-50 text-gray-700"
+                            }
+                          >
+                            {clinicalCase.status || "active"}
+                          </Badge>
+                        </div>
+
+                        {/* Condensed Clinical Details Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                          {clinicalCase.symptoms && (
+                            <div className="bg-blue-50 border border-blue-200 p-2 rounded-md">
+                              <p className="text-xs font-semibold text-blue-900 mb-1">Symptoms</p>
+                              <p className="text-xs text-blue-800 line-clamp-2">{clinicalCase.symptoms}</p>
+                            </div>
+                          )}
+                          {clinicalCase.neurological_exam && (
+                            <div className="bg-purple-50 border border-purple-200 p-2 rounded-md">
+                              <p className="text-xs font-semibold text-purple-900 mb-1">Neuro Exam</p>
+                              <p className="text-xs text-purple-800 line-clamp-2">{clinicalCase.neurological_exam}</p>
+                            </div>
+                          )}
+                          {clinicalCase.imaging_findings && (
+                            <div className="bg-orange-50 border border-orange-200 p-2 rounded-md">
+                              <p className="text-xs font-semibold text-orange-900 mb-1">Imaging</p>
+                              <p className="text-xs text-orange-800 line-clamp-2">{clinicalCase.imaging_findings}</p>
+                            </div>
+                          )}
+                          {clinicalCase.medications && (
+                            <div className="bg-green-50 border border-green-200 p-2 rounded-md">
+                              <p className="text-xs font-semibold text-green-900 mb-1 flex items-center gap-1">
+                                <Pill className="w-3 h-3" />
+                                Medications
+                              </p>
+                              <p className="text-xs text-green-800 line-clamp-2">{clinicalCase.medications}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Treatment Plan - Full Width */}
+                        {clinicalCase.treatment_plan && (
+                          <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-md">
+                            <p className="text-xs font-semibold text-indigo-900 mb-1 flex items-center gap-1">
+                              <FileText className="w-3 h-3" />
+                              Treatment Plan
+                            </p>
+                            <p className="text-sm text-indigo-800">{clinicalCase.treatment_plan}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Full Media Gallery - Below Case Info */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                          <Image className="w-4 h-4" />
+                          Attached Media ({clinicalCase.medical_images?.length || 0})
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddMedia(clinicalCase)}
+                          className="flex items-center gap-1"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Media
+                        </Button>
+                      </div>
+                      
+                      {clinicalCase.medical_images && clinicalCase.medical_images.length > 0 ? (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                          {clinicalCase.medical_images.map((media: any) => (
+                            <div key={media.id} className="relative group">
+                              <button
+                                onClick={() => {
+                                  setSelectedMedia(media);
+                                  setMediaDialogOpen(true);
+                                }}
+                                className="w-full aspect-square"
+                              >
+                                <div className="w-full h-full rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all bg-gray-100">
+                                  {media.file_type === "image" ? (
+                                    <img 
+                                      src={media.image_url} 
+                                      alt={media.description || "Medical image"}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : media.file_type === "video" ? (
+                                    <div className="w-full h-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+                                      <Video className="w-6 h-6 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                                      <Link className="w-6 h-6 text-white" />
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center transition-all">
+                                    <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100" />
+                                  </div>
+                                </div>
+                              </button>
+                              
+                              {/* Delete button - appears on hover */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteMedia(media.id);
+                                }}
+                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-600"
+                                title="Delete media"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                              
+                              <p className="text-xs text-gray-600 mt-1 text-center line-clamp-1">
+                                {media.image_type || media.description || "Media"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                          <Image className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 text-sm">No media attached yet</p>
+                          <p className="text-gray-400 text-xs mt-1">Click "Add Media" to upload images, videos, or links</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Appointment History */}
       <Card>
         <CardHeader>
@@ -732,6 +1185,192 @@ export default function PatientDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Media Dialog */}
+      <Dialog open={addMediaDialogOpen} onOpenChange={setAddMediaDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Media to Clinical Case</DialogTitle>
+            <DialogDescription>
+              Upload images, videos, or add links related to this diagnosis
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={newMediaType} onValueChange={(v) => setNewMediaType(v as any)}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="image">
+                <Image className="w-4 h-4 mr-2" />
+                Image
+              </TabsTrigger>
+              <TabsTrigger value="video">
+                <Video className="w-4 h-4 mr-2" />
+                Video
+              </TabsTrigger>
+              <TabsTrigger value="link">
+                <Link className="w-4 h-4 mr-2" />
+                Link
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="image" className="space-y-4">
+              <div>
+                <Label>Select Image</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setNewMediaFile(e.target.files?.[0] || null)}
+                  className="mt-2"
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="video" className="space-y-4">
+              <div>
+                <Label>Select Video</Label>
+                <Input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setNewMediaFile(e.target.files?.[0] || null)}
+                  className="mt-2"
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="link" className="space-y-4">
+              <div>
+                <Label>Link URL</Label>
+                <Input
+                  type="url"
+                  placeholder="https://example.com/medical-scan"
+                  value={newMediaLink}
+                  onChange={(e) => setNewMediaLink(e.target.value)}
+                  className="mt-2"
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="space-y-2">
+            <Label>Description / Category</Label>
+            <Input
+              placeholder="e.g., MRI Scan, X-Ray, CT Scan, Pre-op Photo"
+              value={newMediaDescription}
+              onChange={(e) => setNewMediaDescription(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddMediaDialogOpen(false);
+                setNewMediaFile(null);
+                setNewMediaLink("");
+                setNewMediaDescription("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUploadMedia}
+              disabled={addMediaMutation.isPending}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {addMediaMutation.isPending ? "Uploading..." : "Upload Media"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Media View Dialog */}
+      <MediaViewDialog
+        media={selectedMedia}
+        open={mediaDialogOpen}
+        onOpenChange={setMediaDialogOpen}
+      />
     </div>
+  );
+}
+
+// Media View Dialog Component
+function MediaViewDialog({
+  media,
+  open,
+  onOpenChange,
+}: {
+  media: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!media) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Media Preview</DialogTitle>
+          {media.description && (
+            <DialogDescription>{media.description}</DialogDescription>
+          )}
+        </DialogHeader>
+
+        <div className="flex items-center justify-center bg-gray-100 rounded-lg p-6 min-h-[400px]">
+          {media.file_type === "image" && (
+            <img 
+              src={media.image_url} 
+              alt="Medical image"
+              className="max-w-full max-h-[500px] rounded-lg"
+            />
+          )}
+          {media.file_type === "video" && (
+            <video 
+              controls 
+              className="max-w-full max-h-[500px] rounded-lg"
+            >
+              <source src={media.image_url} />
+              Your browser does not support the video tag.
+            </video>
+          )}
+          {media.file_type === "link" && (
+            <div className="text-center space-y-4">
+              <Link className="w-16 h-16 mx-auto text-blue-600" />
+              <div>
+                <p className="text-sm text-gray-600 mb-2">External Link:</p>
+                <a 
+                  href={media.image_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline break-all text-sm"
+                >
+                  {media.image_url}
+                </a>
+              </div>
+              <Button
+                asChild
+                className="mt-4"
+              >
+                <a 
+                  href={media.image_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Open Link
+                </a>
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="text-sm text-gray-600">
+          <p><strong>Type:</strong> {media.file_type}</p>
+          {media.image_type && <p><strong>Category:</strong> {media.image_type}</p>}
+          {media.file_name && <p><strong>File:</strong> {media.file_name}</p>}
+          {media.uploaded_at && (
+            <p><strong>Uploaded:</strong> {format(new Date(media.uploaded_at), "MMM dd, yyyy HH:mm")}</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -23,6 +23,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { 
   Calendar,
   Clock,
@@ -38,6 +44,12 @@ import {
   Pill,
   FileText,
   Stethoscope,
+  Upload,
+  Image,
+  Video,
+  Link,
+  X,
+  Download,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, parseISO } from "date-fns";
@@ -58,6 +70,15 @@ export default function Diagnoses() {
   const [imagingFindings, setImagingFindings] = useState("");
   const [medications, setMedications] = useState("");
   const [treatmentPlan, setTreatmentPlan] = useState("");
+  
+  // Media state
+  const [mediaItems, setMediaItems] = useState<any[]>([]);
+  const [mediaType, setMediaType] = useState<"image" | "video" | "link">("image");
+  const [mediaLink, setMediaLink] = useState("");
+  const [mediaDescription, setMediaDescription] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [selectedMediaToView, setSelectedMediaToView] = useState<any>(null);
+  const [mediaViewDialogOpen, setMediaViewDialogOpen] = useState(false);
   
   // Re-measured vital signs
   const [temperature, setTemperature] = useState("");
@@ -214,6 +235,68 @@ export default function Diagnoses() {
 
       if (caseError) throw caseError;
 
+      // Upload media files if any
+      if (diagnosis.mediaItems && diagnosis.mediaItems.length > 0) {
+        for (const media of diagnosis.mediaItems) {
+          let fileUrl = media.link; // For links, use the URL directly
+          
+          if (media.file) {
+            try {
+              // Upload file to Supabase storage - use flat path without subdirectories
+              const sanitizedFileName = media.file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+              const fileName = `${Date.now()}-${clinicalCase.id}-${sanitizedFileName}`;
+              
+              console.log(`Uploading file: ${fileName}, Size: ${media.file.size}, Type: ${media.file.type}`);
+              
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from("medical-media")
+                .upload(fileName, media.file, {
+                  cacheControl: '3600',
+                  contentType: media.file.type || 'application/octet-stream'
+                });
+              
+              if (uploadError) {
+                if (uploadError.message.includes("Bucket not found")) {
+                  throw new Error(
+                    "Storage bucket not found. Please create the 'medical-media' storage bucket in Supabase. " +
+                    "Go to Storage → Create Bucket → Name: 'medical-media' → Toggle Public → Create"
+                  );
+                }
+                console.error("Storage upload error:", uploadError);
+                throw new Error(`Storage upload failed: ${uploadError.message}`);
+              }
+              
+              const { data: publicUrl } = supabase.storage
+                .from("medical-media")
+                .getPublicUrl(fileName);
+              
+              fileUrl = publicUrl.publicUrl;
+              console.log("File uploaded successfully:", fileUrl);
+            } catch (fileError) {
+              console.error("File upload error:", fileError);
+              throw fileError;
+            }
+          }
+
+          // Create medical image record
+          try {
+            await supabase.from("medical_images").insert({
+              clinical_case_id: clinicalCase.id,
+              file_type: media.type,
+              image_type: "Photo", // Valid DB constraint value (MRI, CT, X-Ray, Ultrasound, Photo)
+              image_url: fileUrl, // Changed from file_url to image_url (actual DB column name)
+              file_name: media.file?.name || "Link",
+              file_size: media.file?.size || null,
+              description: media.description, // User's description goes here
+              uploaded_by: userData.id,
+            });
+          } catch (dbError) {
+            console.error("Database insert error for medical_images:", dbError);
+            throw new Error(`Failed to save media metadata: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+          }
+        }
+      }
+
       // Update appointment status to "seen"
       const { error: updateError } = await supabase
         .from("appointments")
@@ -228,7 +311,7 @@ export default function Diagnoses() {
       queryClient.invalidateQueries({ queryKey: ["diagnosis-appointments"] });
       toast({
         title: "Success",
-        description: "Diagnosis recorded successfully",
+        description: "Diagnosis recorded successfully with media",
       });
       setDiagnosisDialogOpen(false);
       resetDiagnosisForm();
@@ -265,6 +348,57 @@ export default function Diagnoses() {
     setBloodPressure("");
     setHeartRate("");
     setOxygenSaturation("");
+    setMediaItems([]);
+    setMediaType("image");
+    setMediaLink("");
+    setMediaDescription("");
+    setMediaFile(null);
+  };
+
+  const handleAddMedia = () => {
+    if (mediaType === "link" && !mediaLink.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a link URL",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if ((mediaType === "image" || mediaType === "video") && !mediaFile) {
+      toast({
+        title: "Error",
+        description: "Please select a file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newMedia = {
+      id: Date.now(),
+      type: mediaType,
+      file: mediaFile,
+      link: mediaLink,
+      description: mediaDescription,
+    };
+
+    setMediaItems([...mediaItems, newMedia]);
+    setMediaFile(null);
+    setMediaLink("");
+    setMediaDescription("");
+    toast({
+      title: "Success",
+      description: "Media added to diagnosis",
+    });
+  };
+
+  const handleRemoveMedia = (id: number) => {
+    setMediaItems(mediaItems.filter((m: any) => m.id !== id));
+  };
+
+  const handleViewMedia = (media: any) => {
+    setSelectedMediaToView(media);
+    setMediaViewDialogOpen(true);
   };
 
   const handleSaveDiagnosis = () => {
@@ -284,6 +418,7 @@ export default function Diagnoses() {
         bloodPressure,
         heartRate,
         oxygenSaturation,
+        mediaItems,
       },
     });
   };
@@ -602,6 +737,149 @@ export default function Diagnoses() {
                 />
               </div>
             </div>
+
+            {/* Media Management */}
+            <Card className="border-blue-200 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  Media (Images, Videos, Links)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Tabs value={mediaType} onValueChange={(v: any) => setMediaType(v)}>
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="image" className="flex items-center gap-1">
+                      <Image className="w-4 h-4" />
+                      Image
+                    </TabsTrigger>
+                    <TabsTrigger value="video" className="flex items-center gap-1">
+                      <Video className="w-4 h-4" />
+                      Video
+                    </TabsTrigger>
+                    <TabsTrigger value="link" className="flex items-center gap-1">
+                      <Link className="w-4 h-4" />
+                      Link
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="image" className="space-y-3 mt-4">
+                    <div>
+                      <Label htmlFor="imageFile">Select Image</Label>
+                      <Input
+                        id="imageFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Supported: JPG, PNG, GIF (max 10MB)
+                      </p>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="video" className="space-y-3 mt-4">
+                    <div>
+                      <Label htmlFor="videoFile">Select Video</Label>
+                      <Input
+                        id="videoFile"
+                        type="file"
+                        accept="video/*"
+                        onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Supported: MP4, MOV, AVI (max 100MB)
+                      </p>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="link" className="space-y-3 mt-4">
+                    <div>
+                      <Label htmlFor="mediaLink">Link URL</Label>
+                      <Input
+                        id="mediaLink"
+                        placeholder="https://example.com/media"
+                        value={mediaLink}
+                        onChange={(e) => setMediaLink(e.target.value)}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Paste a link to external media or document
+                      </p>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <div>
+                  <Label htmlFor="mediaDescription">Description (Optional)</Label>
+                  <Input
+                    id="mediaDescription"
+                    placeholder="e.g., MRI scan, CT imaging, Video demonstration..."
+                    value={mediaDescription}
+                    onChange={(e) => setMediaDescription(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+
+                <Button 
+                  onClick={handleAddMedia}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Add Media to Diagnosis
+                </Button>
+
+                {/* Media Items List */}
+                {mediaItems.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <h4 className="text-sm font-medium">Added Media ({mediaItems.length})</h4>
+                    {mediaItems.map((media: any) => (
+                      <div 
+                        key={media.id} 
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {media.type === "image" && <Image className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                          {media.type === "video" && <Video className="w-4 h-4 text-red-600 flex-shrink-0" />}
+                          {media.type === "link" && <Link className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                          
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">
+                              {media.file?.name || media.link || "Media"}
+                            </p>
+                            {media.description && (
+                              <p className="text-xs text-gray-600 truncate">{media.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleViewMedia(media)}
+                            title="Preview media"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveMedia(media.id)}
+                            title="Remove media"
+                          >
+                            <X className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           <DialogFooter>
@@ -622,6 +900,68 @@ export default function Diagnoses() {
               {diagnosisMutation.isPending ? "Saving..." : "Save Diagnosis"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Media View Dialog */}
+      <Dialog open={mediaViewDialogOpen} onOpenChange={setMediaViewDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Media Preview</DialogTitle>
+            {selectedMediaToView?.description && (
+              <DialogDescription>{selectedMediaToView.description}</DialogDescription>
+            )}
+          </DialogHeader>
+
+          {selectedMediaToView && (
+            <div className="flex items-center justify-center bg-gray-100 rounded-lg p-6">
+              {selectedMediaToView.type === "image" && selectedMediaToView.file && (
+                <img 
+                  src={URL.createObjectURL(selectedMediaToView.file)} 
+                  alt="Preview"
+                  className="max-w-full max-h-[500px]"
+                />
+              )}
+              {selectedMediaToView.type === "video" && selectedMediaToView.file && (
+                <video 
+                  controls 
+                  className="max-w-full max-h-[500px]"
+                >
+                  <source src={URL.createObjectURL(selectedMediaToView.file)} type={selectedMediaToView.file.type} />
+                  Your browser does not support the video tag.
+                </video>
+              )}
+              {selectedMediaToView.type === "link" && (
+                <div className="text-center space-y-4">
+                  <Link className="w-16 h-16 mx-auto text-blue-600" />
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Link:</p>
+                    <a 
+                      href={selectedMediaToView.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline break-all text-sm"
+                    >
+                      {selectedMediaToView.link}
+                    </a>
+                  </div>
+                  <Button
+                    asChild
+                    className="mt-4"
+                  >
+                    <a 
+                      href={selectedMediaToView.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Open Link
+                    </a>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
