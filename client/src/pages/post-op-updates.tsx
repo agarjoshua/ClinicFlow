@@ -4,10 +4,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
+import { 
   Dialog,
   DialogContent,
   DialogDescription,
@@ -16,31 +16,42 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Activity,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  ClipboardList,
   Search,
   Plus,
-  Calendar,
-  Heart,
+  Edit,
   Eye,
-  CheckCircle,
+  TrendingUp,
+  Activity,
+  Zap,
+  Thermometer,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { useLocation } from "wouter";
+import { format, parseISO, differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
 export default function PostOpUpdates() {
+  const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedProcedure, setSelectedProcedure] = useState<any>(null);
+  const [selectedUpdate, setSelectedUpdate] = useState<any>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
-  // Form state for new update
-  const [dayPostOp, setDayPostOp] = useState("");
-  const [gcsScore, setGcsScore] = useState("");
-  const [motorUR, setMotorUR] = useState("");
-  const [motorUL, setMotorUL] = useState("");
-  const [motorLR, setMotorLR] = useState("");
-  const [motorLL, setMotorLL] = useState("");
+  // Form state for post-op update
+  const [dayPostOp, setDayPostOp] = useState(1);
+  const [gcsScore, setGcsScore] = useState(15);
+  const [motorUR, setMotorUR] = useState(5);
+  const [motorUL, setMotorUL] = useState(5);
+  const [motorLR, setMotorLR] = useState(5);
+  const [motorLL, setMotorLL] = useState(5);
   const [bloodPressure, setBloodPressure] = useState("");
   const [pulse, setPulse] = useState("");
   const [temperature, setTemperature] = useState("");
@@ -54,93 +65,91 @@ export default function PostOpUpdates() {
 
   const { toast } = useToast();
 
-  // Fetch active post-op procedures
-  const { data: procedures = [], isLoading } = useQuery({
-    queryKey: ["activePostOpProcedures"],
+  // Fetch all post-op updates for the procedures
+  const { data: allPostOpUpdates = [], isLoading } = useQuery({
+    queryKey: ["allPostOpUpdates"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("procedures")
+      const { data } = await supabase
+        .from("post_op_updates")
         .select(`
-          id,
-          patient_id,
-          procedure_type,
-          actual_date,
-          status,
-          patient:patients(id, first_name, last_name, patient_number),
-          post_op_updates(
+          *,
+          procedure:procedures(
             id,
-            update_date,
-            day_post_op,
-            gcs_score
+            procedure_type,
+            actual_date,
+            patient:patients(
+              id,
+              patient_number,
+              first_name,
+              last_name,
+              age,
+              gender
+            ),
+            hospital:hospitals(id, name, code, color)
           )
         `)
-        .eq("status", "done")
-        .order("actual_date", { ascending: false });
+        .order("update_date", { ascending: false })
+        .order("day_post_op", { ascending: false });
 
-      if (error) throw error;
-
-      // Filter out discharged patients
-      if (!data) return [];
-
-      const { data: dischargedIds } = await supabase
-        .from("discharges")
-        .select("procedure_id");
-
-      const dischargedSet = new Set(dischargedIds?.map(d => d.procedure_id) || []);
-      
-      return (data || [])
-        .filter(p => !dischargedSet.has(p.id))
-        .map(proc => ({
-          id: proc.id,
-          procedureType: proc.procedure_type,
-          actualDate: proc.actual_date,
-          status: proc.status,
-          patient: proc.patient ? {
-            id: proc.patient.id,
-            firstName: proc.patient.first_name,
-            lastName: proc.patient.last_name,
-            patientNumber: proc.patient.patient_number,
-          } : null,
-          postOpUpdates: proc.post_op_updates || [],
-        }));
+      return data || [];
     },
   });
 
-  // Create post-op update mutation
-  const createUpdateMutation = useMutation({
-    mutationFn: async (updateData: any) => {
-      const user = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("post_op_updates")
-        .insert({
-          procedure_id: updateData.procedureId,
-          update_date: new Date().toISOString().split('T')[0],
-          day_post_op: parseInt(updateData.dayPostOp),
-          gcs_score: parseInt(updateData.gcsScore),
-          motor_ur: parseInt(updateData.motorUR) || 0,
-          motor_ul: parseInt(updateData.motorUL) || 0,
-          motor_lr: parseInt(updateData.motorLR) || 0,
-          motor_ll: parseInt(updateData.motorLL) || 0,
-          blood_pressure: updateData.bloodPressure || null,
-          pulse: updateData.pulse ? parseInt(updateData.pulse) : null,
-          temperature: updateData.temperature ? parseFloat(updateData.temperature) : null,
-          respiratory_rate: updateData.respiratoryRate ? parseInt(updateData.respiratoryRate) : null,
-          spo2: updateData.spo2 ? parseInt(updateData.spo2) : null,
-          current_medications: updateData.currentMedications || null,
-          improvement_notes: updateData.improvementNotes || null,
-          new_complaints: updateData.newComplaints || null,
-          neurological_exam: updateData.neurologicalExam || null,
-          wound_status: updateData.woundStatus || null,
-          updated_by: user.data.user?.id,
-        });
+  // Filter updates based on search
+  const filteredUpdates = allPostOpUpdates.filter(update => {
+    const patient = update.procedure?.patient;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      patient?.first_name.toLowerCase().includes(searchLower) ||
+      patient?.last_name.toLowerCase().includes(searchLower) ||
+      patient?.patient_number.includes(searchLower)
+    );
+  });
 
-      if (error) throw error;
+  // Create or update post-op update mutation
+  const createUpdateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const user = await supabase.auth.getUser();
+      const updateData = {
+        procedure_id: data.procedureId,
+        update_date: new Date().toISOString().split('T')[0],
+        day_post_op: parseInt(data.dayPostOp),
+        gcs_score: parseInt(data.gcsScore),
+        motor_ur: parseInt(data.motorUR),
+        motor_ul: parseInt(data.motorUL),
+        motor_lr: parseInt(data.motorLR),
+        motor_ll: parseInt(data.motorLL),
+        blood_pressure: data.bloodPressure,
+        pulse: data.pulse ? parseInt(data.pulse) : null,
+        temperature: data.temperature ? parseFloat(data.temperature) : null,
+        respiratory_rate: data.respiratoryRate ? parseInt(data.respiratoryRate) : null,
+        spo2: data.spo2 ? parseInt(data.spo2) : null,
+        current_medications: data.currentMedications,
+        improvement_notes: data.improvementNotes,
+        new_complaints: data.newComplaints,
+        neurological_exam: data.neurologicalExam,
+        wound_status: data.woundStatus,
+        updated_by: user.data.user?.id,
+      };
+
+      if (editMode && selectedUpdate?.id) {
+        const { error } = await supabase
+          .from("post_op_updates")
+          .update(updateData)
+          .eq("id", selectedUpdate.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("post_op_updates")
+          .insert([updateData]);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["activePostOpProcedures"] });
+      queryClient.invalidateQueries({ queryKey: ["allPostOpUpdates"] });
       toast({
         title: "Success",
-        description: "Post-op update recorded successfully",
+        description: editMode ? "Post-op update saved" : "Post-op update recorded",
       });
       setUpdateDialogOpen(false);
       resetForm();
@@ -148,20 +157,22 @@ export default function PostOpUpdates() {
     onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to record post-op update",
+        description: "Failed to save post-op update",
         variant: "destructive",
       });
-      console.error("Update error:", error);
+      console.error(error);
     },
   });
 
   const resetForm = () => {
-    setDayPostOp("");
-    setGcsScore("");
-    setMotorUR("");
-    setMotorUL("");
-    setMotorLR("");
-    setMotorLL("");
+    setSelectedUpdate(null);
+    setEditMode(false);
+    setDayPostOp(1);
+    setGcsScore(15);
+    setMotorUR(5);
+    setMotorUL(5);
+    setMotorLR(5);
+    setMotorLL(5);
     setBloodPressure("");
     setPulse("");
     setTemperature("");
@@ -172,126 +183,94 @@ export default function PostOpUpdates() {
     setNewComplaints("");
     setNeurologicalExam("");
     setWoundStatus("");
-    setSelectedProcedure(null);
   };
 
-  const handleAddUpdate = () => {
-    if (!selectedProcedure || !dayPostOp || !gcsScore) {
-      toast({
-        title: "Error",
-        description: "Please fill in required fields (Day, GCS Score)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createUpdateMutation.mutate({
-      procedureId: selectedProcedure.id,
-      dayPostOp,
-      gcsScore,
-      motorUR,
-      motorUL,
-      motorLR,
-      motorLL,
-      bloodPressure,
-      pulse,
-      temperature,
-      respiratoryRate,
-      spo2,
-      currentMedications,
-      improvementNotes,
-      newComplaints,
-      neurologicalExam,
-      woundStatus,
-    });
+  const openNewUpdateDialog = () => {
+    setEditMode(false);
+    setSelectedUpdate(null);
+    resetForm();
+    setUpdateDialogOpen(true);
   };
 
-  const filteredProcedures = procedures.filter((proc: any) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      proc.patient?.firstName.toLowerCase().includes(searchLower) ||
-      proc.patient?.lastName.toLowerCase().includes(searchLower) ||
-      proc.patient?.patientNumber.includes(searchTerm) ||
-      proc.procedureType.toLowerCase().includes(searchLower)
-    );
-  });
-
-  const getLatestUpdate = (postOpUpdates: any[]) => {
-    if (!postOpUpdates || postOpUpdates.length === 0) return null;
-    return postOpUpdates[0];
+  const openEditDialog = (update: any) => {
+    setEditMode(true);
+    setSelectedUpdate(update);
+    setDayPostOp(update.day_post_op || 1);
+    setGcsScore(update.gcs_score || 15);
+    setMotorUR(update.motor_ur || 5);
+    setMotorUL(update.motor_ul || 5);
+    setMotorLR(update.motor_lr || 5);
+    setMotorLL(update.motor_ll || 5);
+    setBloodPressure(update.blood_pressure || "");
+    setPulse(update.pulse || "");
+    setTemperature(update.temperature || "");
+    setRespiratoryRate(update.respiratory_rate || "");
+    setSpo2(update.spo2 || "");
+    setCurrentMedications(update.current_medications || "");
+    setImprovementNotes(update.improvement_notes || "");
+    setNewComplaints(update.new_complaints || "");
+    setNeurologicalExam(update.neurological_exam || "");
+    setWoundStatus(update.wound_status || "");
+    setUpdateDialogOpen(true);
   };
-
-  const getDaysSinceProcedure = (actualDate: string) => {
-    const procedureDate = new Date(actualDate);
-    const today = new Date();
-    const diffTime = Math.abs(today.getTime() - procedureDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <p className="text-gray-500">Loading post-op patients...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Post-Op Updates</h1>
-          <p className="text-gray-600 mt-1">Daily post-operative patient monitoring</p>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <ClipboardList className="w-8 h-8 text-green-600" />
+            Post-Op Monitoring
+          </h1>
+          <p className="text-gray-600 mt-1">Daily post-operative patient tracking and vitals</p>
         </div>
+        <Button 
+          onClick={openNewUpdateDialog}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Record Update
+        </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <Activity className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-              <p className="text-2xl font-bold">{procedures.length}</p>
-              <p className="text-sm text-gray-500">Active Post-Op Patients</p>
+              <Activity className="w-8 h-8 mx-auto mb-2 text-green-600" />
+              <p className="text-2xl font-bold">{allPostOpUpdates.length}</p>
+              <p className="text-sm text-gray-500">Total Updates</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <Heart className="w-8 h-8 mx-auto mb-2 text-red-600" />
-              <p className="text-2xl font-bold">
-                {procedures.filter((p: any) => getLatestUpdate(p.postOpUpdates)?.day_post_op === 1).length}
-              </p>
-              <p className="text-sm text-gray-500">Post-Op Day 1</p>
+              <TrendingUp className="w-8 h-8 mx-auto mb-2 text-blue-600" />
+              <p className="text-2xl font-bold">{new Set(allPostOpUpdates.map(u => u.procedure_id)).size}</p>
+              <p className="text-sm text-gray-500">Patients Monitored</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-600" />
-              <p className="text-2xl font-bold">
-                {procedures.filter((p: any) => getDaysSinceProcedure(p.actualDate) > 7).length}
-              </p>
-              <p className="text-sm text-gray-500">Post-Op Day 7+</p>
+              <Thermometer className="w-8 h-8 mx-auto mb-2 text-orange-600" />
+              <p className="text-sm text-gray-500 mt-8">Monitoring Active</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search Bar */}
+      {/* Search */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex gap-2">
             <Search className="w-5 h-5 text-gray-400 mt-2.5" />
             <Input
-              placeholder="Search by name, ID, or procedure..."
+              placeholder="Search by patient name, ID, or contact..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1"
@@ -300,249 +279,265 @@ export default function PostOpUpdates() {
         </CardContent>
       </Card>
 
-      {/* Procedures List */}
-      {filteredProcedures.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-500">No active post-op patients found</p>
-            <p className="text-sm text-gray-400 mt-2">Check back when procedures are marked as complete</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {filteredProcedures.map((procedure: any) => {
-            const latestUpdate = getLatestUpdate(procedure.postOpUpdates);
-            const daysSince = getDaysSinceProcedure(procedure.actualDate);
+      {/* Post-Op Updates List */}
+      <div className="space-y-3">
+        {isLoading ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-gray-500">Loading post-op records...</p>
+            </CardContent>
+          </Card>
+        ) : filteredUpdates.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <ClipboardList className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500">No post-op updates found</p>
+              {searchTerm && <p className="text-sm text-gray-400 mt-1">Try adjusting your search</p>}
+            </CardContent>
+          </Card>
+        ) : (
+          filteredUpdates.map((update: any) => {
+            const patient = update.procedure?.patient;
+            const hospital = update.procedure?.hospital;
+            const procedureDate = update.procedure?.actual_date;
+            const daysPostOp = procedureDate 
+              ? differenceInDays(new Date(update.update_date), new Date(procedureDate)) + 1
+              : update.day_post_op;
+
+            const gcsStatus = update.gcs_score >= 13 ? "good" : update.gcs_score >= 9 ? "fair" : "poor";
+            const gcsColor = gcsStatus === "good" ? "text-green-600" : gcsStatus === "fair" ? "text-yellow-600" : "text-red-600";
 
             return (
-              <Card key={procedure.id} className="hover-elevate">
+              <Card key={update.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <div>
-                          <p className="font-semibold text-lg">
-                            {procedure.patient?.firstName} {procedure.patient?.lastName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            #{procedure.patient?.patientNumber}
+                          <h3 className="font-semibold text-lg">
+                            {patient?.first_name} {patient?.last_name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            #{patient?.patient_number} • {patient?.age}y • {patient?.gender}
                           </p>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-700 mb-2">{procedure.procedureType}</p>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                        <div className="flex items-center gap-1 text-xs">
-                          <Calendar className="w-3 h-3 text-gray-400" />
-                          <span className="text-gray-600">
-                            {format(parseISO(procedure.actualDate), "MMM d")}
-                          </span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                        {/* GCS Score */}
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">GCS Score</p>
+                          <p className={`text-lg font-bold ${gcsColor}`}>
+                            {update.gcs_score}/15
+                          </p>
                         </div>
-                        <div className="flex items-center gap-1 text-xs">
-                          <Heart className="w-3 h-3 text-gray-400" />
-                          <span className="text-gray-600">Day {daysSince}</span>
+
+                        {/* Motor Function */}
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Motor Function</p>
+                          <p className="text-xs font-mono mt-1">
+                            <span className="block">UR: {update.motor_ur || "-"}</span>
+                            <span className="block">UL: {update.motor_ul || "-"}</span>
+                          </p>
                         </div>
-                        {latestUpdate && (
-                          <>
-                            <div className="flex items-center gap-1 text-xs">
-                              <span className="text-gray-600">GCS: {latestUpdate.gcs_score}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-xs">
-                              <Calendar className="w-3 h-3 text-gray-400" />
-                              <span className="text-gray-600">
-                                {format(parseISO(latestUpdate.update_date), "MMM d")}
-                              </span>
-                            </div>
-                          </>
-                        )}
+
+                        {/* Vital Signs */}
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Vital Signs</p>
+                          <p className="text-xs font-mono mt-1">
+                            <span className="block">BP: {update.blood_pressure || "-"}</span>
+                            <span className="block">HR: {update.pulse || "-"}</span>
+                          </p>
+                        </div>
+
+                        {/* Wound Status */}
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-xs text-gray-600">Wound</p>
+                          <Badge variant={update.wound_status === "healthy" ? "default" : "secondary"} className="mt-1 text-xs">
+                            {update.wound_status || "N/A"}
+                          </Badge>
+                        </div>
                       </div>
 
-                      {!latestUpdate && (
-                        <Badge variant="outline" className="bg-yellow-50">
-                          No updates yet
-                        </Badge>
+                      {/* Notes */}
+                      {(update.improvement_notes || update.new_complaints) && (
+                        <div className="mt-3 space-y-2">
+                          {update.improvement_notes && (
+                            <div className="bg-green-50 p-2 rounded text-sm">
+                              <p className="font-medium text-green-800">Improvement:</p>
+                              <p className="text-green-700">{update.improvement_notes}</p>
+                            </div>
+                          )}
+                          {update.new_complaints && (
+                            <div className="bg-yellow-50 p-2 rounded text-sm">
+                              <p className="font-medium text-yellow-800">Concerns:</p>
+                              <p className="text-yellow-700">{update.new_complaints}</p>
+                            </div>
+                          )}
+                        </div>
                       )}
+
+                      <div className="flex gap-2 items-center text-xs text-gray-500 mt-3">
+                        <span style={{ color: hospital?.color || "#3b82f6" }} className="font-medium">
+                          {hospital?.name}
+                        </span>
+                        <span>•</span>
+                        <span>Day {daysPostOp} Post-Op</span>
+                        <span>•</span>
+                        <span>{format(parseISO(update.update_date), "MMM d, yyyy h:mm a")}</span>
+                      </div>
                     </div>
 
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setSelectedProcedure(procedure);
-                          setDetailsDialogOpen(true);
-                        }}
+                        onClick={() => openEditDialog(update)}
                       >
-                        <Eye className="w-4 h-4" />
+                        <Edit className="w-4 h-4" />
                       </Button>
                       <Button
+                        variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setSelectedProcedure(procedure);
-                          setUpdateDialogOpen(true);
-                        }}
+                        onClick={() => setLocation(`/procedures/${update.procedure_id}`)}
                       >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Update
+                        <Eye className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
-      {/* Add Update Dialog */}
+      {/* Update Dialog */}
       <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              Add Post-Op Update for {selectedProcedure?.patient?.firstName}{" "}
-              {selectedProcedure?.patient?.lastName}
-            </DialogTitle>
+            <DialogTitle>{editMode ? "Edit Post-Op Update" : "Record Post-Op Update"}</DialogTitle>
             <DialogDescription>
-              Record daily monitoring data for {selectedProcedure?.procedureType}
+              Document patient's post-operative progress and vital signs
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Day Post-Op */}
-            <div>
-              <Label htmlFor="dayPostOp">Day Post-Op *</Label>
-              <Input
-                id="dayPostOp"
-                type="number"
-                min="0"
-                value={dayPostOp}
-                onChange={(e) => setDayPostOp(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-
             {/* Glasgow Coma Scale */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="gcsScore">Glasgow Coma Scale (3-15) *</Label>
-                <Input
-                  id="gcsScore"
-                  type="number"
-                  min="3"
-                  max="15"
-                  value={gcsScore}
-                  onChange={(e) => setGcsScore(e.target.value)}
-                  placeholder="15"
-                />
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                Glasgow Coma Scale (GCS)
+              </h3>
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <Label htmlFor="gcs">Total Score</Label>
+                  <Input
+                    id="gcs"
+                    type="number"
+                    min="3"
+                    max="15"
+                    value={gcsScore}
+                    onChange={(e) => setGcsScore(parseInt(e.target.value))}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Motor Function */}
-            <div>
-              <Label className="mb-2 block">Motor Function (0-5)</Label>
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <h3 className="font-semibold text-green-900 mb-3">Motor Function (0-5)</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div>
-                  <Label htmlFor="motorUR" className="text-xs">Upper Right</Label>
+                  <Label htmlFor="motorUR">Upper Right</Label>
                   <Input
                     id="motorUR"
                     type="number"
                     min="0"
                     max="5"
                     value={motorUR}
-                    onChange={(e) => setMotorUR(e.target.value)}
-                    placeholder="5"
+                    onChange={(e) => setMotorUR(parseInt(e.target.value))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="motorUL" className="text-xs">Upper Left</Label>
+                  <Label htmlFor="motorUL">Upper Left</Label>
                   <Input
                     id="motorUL"
                     type="number"
                     min="0"
                     max="5"
                     value={motorUL}
-                    onChange={(e) => setMotorUL(e.target.value)}
-                    placeholder="5"
+                    onChange={(e) => setMotorUL(parseInt(e.target.value))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="motorLR" className="text-xs">Lower Right</Label>
+                  <Label htmlFor="motorLR">Lower Right</Label>
                   <Input
                     id="motorLR"
                     type="number"
                     min="0"
                     max="5"
                     value={motorLR}
-                    onChange={(e) => setMotorLR(e.target.value)}
-                    placeholder="5"
+                    onChange={(e) => setMotorLR(parseInt(e.target.value))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="motorLL" className="text-xs">Lower Left</Label>
+                  <Label htmlFor="motorLL">Lower Left</Label>
                   <Input
                     id="motorLL"
                     type="number"
                     min="0"
                     max="5"
                     value={motorLL}
-                    onChange={(e) => setMotorLL(e.target.value)}
-                    placeholder="5"
+                    onChange={(e) => setMotorLL(parseInt(e.target.value))}
                   />
                 </div>
               </div>
             </div>
 
             {/* Vital Signs */}
-            <div>
-              <Label className="mb-2 block">Vital Signs</Label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+              <h3 className="font-semibold text-orange-900 mb-3">Vital Signs</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 <div>
-                  <Label htmlFor="bloodPressure" className="text-xs">Blood Pressure</Label>
+                  <Label htmlFor="bp">Blood Pressure</Label>
                   <Input
-                    id="bloodPressure"
+                    id="bp"
                     placeholder="120/80"
                     value={bloodPressure}
                     onChange={(e) => setBloodPressure(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="pulse" className="text-xs">Pulse (bpm)</Label>
+                  <Label htmlFor="pulse">Pulse (bpm)</Label>
                   <Input
                     id="pulse"
                     type="number"
-                    min="0"
                     value={pulse}
                     onChange={(e) => setPulse(e.target.value)}
-                    placeholder="80"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="temperature" className="text-xs">Temperature (°C)</Label>
+                  <Label htmlFor="temp">Temperature (°C)</Label>
                   <Input
-                    id="temperature"
+                    id="temp"
                     type="number"
                     step="0.1"
-                    min="35"
-                    max="42"
                     value={temperature}
                     onChange={(e) => setTemperature(e.target.value)}
-                    placeholder="37"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="respiratoryRate" className="text-xs">Respiratory Rate</Label>
+                  <Label htmlFor="rr">Respiratory Rate</Label>
                   <Input
-                    id="respiratoryRate"
+                    id="rr"
                     type="number"
-                    min="0"
                     value={respiratoryRate}
                     onChange={(e) => setRespiratoryRate(e.target.value)}
-                    placeholder="16"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="spo2" className="text-xs">SpO2 (%)</Label>
+                  <Label htmlFor="spo2">SpO2 (%)</Label>
                   <Input
                     id="spo2"
                     type="number"
@@ -550,120 +545,117 @@ export default function PostOpUpdates() {
                     max="100"
                     value={spo2}
                     onChange={(e) => setSpo2(e.target.value)}
-                    placeholder="98"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Clinical Notes */}
-            <div>
-              <Label htmlFor="currentMedications">Current Medications</Label>
-              <Textarea
-                id="currentMedications"
-                placeholder="Current medications being given..."
-                value={currentMedications}
-                onChange={(e) => setCurrentMedications(e.target.value)}
-                rows={2}
-              />
-            </div>
+            {/* Clinical Observations */}
+            <div className="space-y-2">
+              <div>
+                <Label htmlFor="wound">Wound Status</Label>
+                <Select value={woundStatus} onValueChange={setWoundStatus}>
+                  <SelectTrigger id="wound">
+                    <SelectValue placeholder="Select wound status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="healthy">Healthy</SelectItem>
+                    <SelectItem value="draining">Draining</SelectItem>
+                    <SelectItem value="infected">Signs of Infection</SelectItem>
+                    <SelectItem value="swollen">Swollen</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <Label htmlFor="neurologicalExam">Neurological Exam</Label>
-              <Textarea
-                id="neurologicalExam"
-                placeholder="Neurological examination findings..."
-                value={neurologicalExam}
-                onChange={(e) => setNeurologicalExam(e.target.value)}
-                rows={2}
-              />
-            </div>
+              <div>
+                <Label htmlFor="neuro">Neurological Exam</Label>
+                <Textarea
+                  id="neuro"
+                  placeholder="Detailed neurological findings..."
+                  value={neurologicalExam}
+                  onChange={(e) => setNeurologicalExam(e.target.value)}
+                  rows={2}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="woundStatus">Wound Status</Label>
-              <Textarea
-                id="woundStatus"
-                placeholder="Wound appearance, any drainage, etc..."
-                value={woundStatus}
-                onChange={(e) => setWoundStatus(e.target.value)}
-                rows={2}
-              />
-            </div>
+              <div>
+                <Label htmlFor="improvement">Improvement Notes</Label>
+                <Textarea
+                  id="improvement"
+                  placeholder="Positive progress and improvements..."
+                  value={improvementNotes}
+                  onChange={(e) => setImprovementNotes(e.target.value)}
+                  rows={2}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="improvementNotes">Improvement Notes</Label>
-              <Textarea
-                id="improvementNotes"
-                placeholder="Patient progress and improvements..."
-                value={improvementNotes}
-                onChange={(e) => setImprovementNotes(e.target.value)}
-                rows={2}
-              />
-            </div>
+              <div>
+                <Label htmlFor="complaints">New Complaints or Concerns</Label>
+                <Textarea
+                  id="complaints"
+                  placeholder="Any new symptoms or concerns to monitor..."
+                  value={newComplaints}
+                  onChange={(e) => setNewComplaints(e.target.value)}
+                  rows={2}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="newComplaints">New Complaints</Label>
-              <Textarea
-                id="newComplaints"
-                placeholder="Any new complaints or concerns..."
-                value={newComplaints}
-                onChange={(e) => setNewComplaints(e.target.value)}
-                rows={2}
-              />
+              <div>
+                <Label htmlFor="meds">Current Medications</Label>
+                <Textarea
+                  id="meds"
+                  placeholder="List current medications and dosages..."
+                  value={currentMedications}
+                  onChange={(e) => setCurrentMedications(e.target.value)}
+                  rows={2}
+                />
+              </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setUpdateDialogOpen(false);
-                resetForm();
-              }}
-            >
+            <Button variant="outline" onClick={() => {
+              setUpdateDialogOpen(false);
+              resetForm();
+            }}>
               Cancel
             </Button>
             <Button
-              onClick={handleAddUpdate}
+              onClick={() => {
+                if (selectedUpdate?.procedure_id) {
+                  createUpdateMutation.mutate({
+                    procedureId: selectedUpdate.procedure_id,
+                    dayPostOp,
+                    gcsScore,
+                    motorUR,
+                    motorUL,
+                    motorLR,
+                    motorLL,
+                    bloodPressure,
+                    pulse,
+                    temperature,
+                    respiratoryRate,
+                    spo2,
+                    currentMedications,
+                    improvementNotes,
+                    newComplaints,
+                    neurologicalExam,
+                    woundStatus,
+                  });
+                } else {
+                  toast({
+                    title: "Error",
+                    description: "Please select a procedure first",
+                    variant: "destructive",
+                  });
+                }
+              }}
               disabled={createUpdateMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-green-600 hover:bg-green-700"
             >
               {createUpdateMutation.isPending ? "Saving..." : "Save Update"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Details Dialog */}
-      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Post-Op History - {selectedProcedure?.patient?.firstName}{" "}
-              {selectedProcedure?.patient?.lastName}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {selectedProcedure?.postOpUpdates && selectedProcedure.postOpUpdates.length > 0 ? (
-              selectedProcedure.postOpUpdates.map((update: any, idx: number) => (
-                <Card key={idx}>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Day {update.day_post_op} - {format(parseISO(update.update_date), "MMM d, yyyy")}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-semibold">GCS Score:</span> {update.gcs_score}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <p className="text-gray-500 text-center">No updates recorded yet</p>
-            )}
-          </div>
         </DialogContent>
       </Dialog>
     </div>
