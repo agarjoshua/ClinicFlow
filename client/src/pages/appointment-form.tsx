@@ -41,6 +41,7 @@ export default function AppointmentForm() {
   const [selectedHospital, setSelectedHospital] = useState<string>("");
   const [selectedSession, setSelectedSession] = useState<string>("");
   const [selectedPatient, setSelectedPatient] = useState<string>("");
+  const [selectedConsultant, setSelectedConsultant] = useState<string>(""); // NEW: Doctor selection
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [isPriority, setIsPriority] = useState(false);
@@ -70,6 +71,20 @@ export default function AppointmentForm() {
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch consultants (doctors)
+  const { data: consultants = [] } = useQuery({
+    queryKey: ["consultants"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .eq("role", "consultant")
         .order("name");
       if (error) throw error;
       return data || [];
@@ -143,6 +158,7 @@ export default function AppointmentForm() {
           {
             clinic_session_id: appointmentData.sessionId,
             patient_id: appointmentData.patientId,
+            consultant_id: appointmentData.consultantId, // NEW: Assign to doctor
             booking_number: bookingNumber,
             chief_complaint: appointmentData.chiefComplaint,
             is_priority: appointmentData.isPriority,
@@ -178,10 +194,10 @@ export default function AppointmentForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedSession || !selectedPatient || !chiefComplaint) {
+    if (!selectedSession || !selectedPatient || !selectedConsultant || !chiefComplaint) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields including selecting a doctor",
         variant: "destructive",
       });
       return;
@@ -190,6 +206,7 @@ export default function AppointmentForm() {
     createAppointment.mutate({
       sessionId: selectedSession,
       patientId: selectedPatient,
+      consultantId: selectedConsultant,
       chiefComplaint,
       isPriority,
       triageNotes,
@@ -321,6 +338,26 @@ export default function AppointmentForm() {
                     </div>
                   </div>
                 )}
+
+                {/* Doctor/Consultant Selection */}
+                <div>
+                  <Label htmlFor="consultant">Assign to Doctor *</Label>
+                  <Select value={selectedConsultant} onValueChange={setSelectedConsultant}>
+                    <SelectTrigger id="consultant">
+                      <SelectValue placeholder="Select doctor for this appointment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {consultants.map((consultant) => (
+                        <SelectItem key={consultant.id} value={consultant.id}>
+                          {consultant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This appointment will appear in the selected doctor's calendar
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>

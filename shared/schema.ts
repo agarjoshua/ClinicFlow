@@ -79,6 +79,7 @@ export const appointments = pgTable("appointments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clinicSessionId: varchar("clinic_session_id").notNull().references(() => clinicSessions.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  consultantId: varchar("consultant_id").references(() => users.id), // Which doctor this appointment is FOR
   bookingNumber: integer("booking_number"), // 1-15 position in queue
   chiefComplaint: text("chief_complaint").notNull(),
   isPriority: boolean("is_priority").notNull().default(false),
@@ -90,7 +91,7 @@ export const appointments = pgTable("appointments", {
   heartRate: integer("heart_rate"), // beats per minute
   oxygenSaturation: integer("oxygen_saturation"), // percentage (0-100)
   status: text("status").notNull().default('booked'), // 'booked' | 'confirmed' | 'seen' | 'rescheduled' | 'cancelled'
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: varchar("created_by").notNull().references(() => users.id), // Who created/recorded this appointment
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

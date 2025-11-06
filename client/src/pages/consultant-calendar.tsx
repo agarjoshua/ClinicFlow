@@ -42,26 +42,29 @@ export default function ConsultantCalendar() {
     },
   });
 
-  // Fetch clinic sessions for this month
+  // Fetch clinic sessions for this month with ALL appointments assigned to this consultant
   const { data: clinicSessions = [], isLoading } = useQuery({
     queryKey: ["clinicSessions", format(monthStart, "yyyy-MM-dd"), currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) return [];
       
+      // Get all clinic sessions that have appointments for this consultant
       const { data, error } = await supabase
         .from("clinic_sessions")
         .select(`
           *,
           hospital:hospitals(*),
-          appointments(
+          appointments!inner(
             id,
             booking_number,
             is_priority,
             status,
-            patient:patients(first_name, last_name)
+            chief_complaint,
+            consultant_id,
+            patient:patients(first_name, last_name, patient_number)
           )
         `)
-        .eq("consultant_id", currentUser.id)
+        .eq("appointments.consultant_id", currentUser.id)
         .gte("session_date", format(calendarStart, "yyyy-MM-dd"))
         .lte("session_date", format(calendarEnd, "yyyy-MM-dd"))
         .order("session_date", { ascending: true })
