@@ -18,8 +18,8 @@ import { supabase } from "@/lib/supabaseClient";
 
 const consultantMenuItems = [
   {
-    title: "My Calendar",
-    url: "/",
+    title: "Calendar",
+    url: "/calendar",
     icon: Calendar,
   },
   {
@@ -37,6 +37,7 @@ const consultantMenuItems = [
     url: "/hospitals",
     icon: Hospital,
   },
+  
 ];
 
 const assistantMenuItems = [
@@ -85,10 +86,9 @@ const assistantMenuItems = [
     url: "/hospitals",
     icon: Hospital,
   },
-  // Temporary - for testing consultant view
   {
-    title: "📅 Consultant Calendar (Demo)",
-    url: "/consultant-calendar-demo",
+    title: "Calendar Management",
+    url: "/calendar",
     icon: Calendar,
   },
 ];

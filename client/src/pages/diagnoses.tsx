@@ -455,19 +455,19 @@ export default function Diagnoses() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-center sm:text-left">
           <h1 className="text-3xl font-bold text-gray-900">Diagnosis</h1>
           <p className="text-gray-600 mt-1">Record diagnosis for confirmed appointments</p>
         </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className="text-lg px-4 py-2">
-            <Brain className="w-5 h-5 mr-2" />
+        <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
+          <Badge variant="outline" className="text-lg px-4 py-2 flex items-center gap-2 w-full justify-center sm:w-auto">
+            <Brain className="w-5 h-5" />
             {filteredAppointments.length} Pending
           </Badge>
           {priorityAppointments.length > 0 && (
-            <Badge variant="destructive" className="text-lg px-4 py-2">
-              <AlertCircle className="w-5 h-5 mr-2" />
+            <Badge variant="destructive" className="text-lg px-4 py-2 flex items-center gap-2 w-full justify-center sm:w-auto">
+              <AlertCircle className="w-5 h-5" />
               {priorityAppointments.length} Priority
             </Badge>
           )}
@@ -477,8 +477,8 @@ export default function Diagnoses() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="w-full">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
@@ -490,19 +490,21 @@ export default function Diagnoses() {
               </div>
             </div>
 
-            <Select value={hospitalFilter} onValueChange={setHospitalFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by hospital" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Hospitals</SelectItem>
-                {hospitals.map((hospital: any) => (
-                  <SelectItem key={hospital.id} value={hospital.id}>
-                    {hospital.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-full">
+              <Select value={hospitalFilter} onValueChange={setHospitalFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by hospital" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Hospitals</SelectItem>
+                  {hospitals.map((hospital: any) => (
+                    <SelectItem key={hospital.id} value={hospital.id}>
+                      {hospital.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -582,7 +584,7 @@ export default function Diagnoses() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div>
                     <Label className="text-xs flex items-center gap-1">
                       <Thermometer className="w-3 h-3" />
@@ -748,7 +750,7 @@ export default function Diagnoses() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <Tabs value={mediaType} onValueChange={(v: any) => setMediaType(v)}>
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
                     <TabsTrigger value="image" className="flex items-center gap-1">
                       <Image className="w-4 h-4" />
                       Image
@@ -981,56 +983,55 @@ function AppointmentDiagnosisCard({
   return (
     <Card className={`hover-elevate ${appointment.isPriority ? "border-red-300 border-2" : ""}`}>
       <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          {/* Color Bar */}
-          <div
-            className="w-1 h-24 rounded-full"
-            style={{
-              backgroundColor: appointment.clinicSession?.hospital?.color || "#3b82f6",
-            }}
-          />
-
-          {/* Queue Number */}
-          <div className="flex flex-col items-center justify-center bg-purple-50 rounded-lg px-4 py-2">
-            <span className="text-xs text-gray-600">Queue</span>
-            <span className="text-2xl font-bold text-purple-600">
-              #{appointment.bookingNumber}
-            </span>
-          </div>
-
-          {/* Patient Avatar */}
-          <div className="cursor-pointer" onClick={onViewPatient}>
-            <PatientAvatar
-              firstName={appointment.patient?.firstName}
-              lastName={appointment.patient?.lastName}
-              dateOfBirth={appointment.patient?.dateOfBirth}
-              age={appointment.patient?.age}
-              gender={appointment.patient?.gender}
-              size="md"
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center xl:items-start xl:gap-6">
+            <div
+              className="w-full h-1 rounded-full sm:w-1 sm:h-24"
+              style={{
+                backgroundColor: appointment.clinicSession?.hospital?.color || "#3b82f6",
+              }}
             />
+
+            <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
+              <div className="flex flex-col items-center justify-center bg-purple-50 rounded-lg px-4 py-2 w-full sm:w-auto">
+                <span className="text-xs text-gray-600">Queue</span>
+                <span className="text-2xl font-bold text-purple-600">
+                  #{appointment.bookingNumber}
+                </span>
+              </div>
+
+              <button className="cursor-pointer" onClick={onViewPatient} type="button">
+                <PatientAvatar
+                  firstName={appointment.patient?.firstName}
+                  lastName={appointment.patient?.lastName}
+                  dateOfBirth={appointment.patient?.dateOfBirth}
+                  age={appointment.patient?.age}
+                  gender={appointment.patient?.gender}
+                  size="md"
+                />
+              </button>
+            </div>
           </div>
 
-          {/* Appointment Details */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between mb-2">
-              <div className="cursor-pointer" onClick={onViewPatient}>
+          <div className="flex-1 min-w-0 space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <button className="text-left" onClick={onViewPatient} type="button">
                 <h3 className="font-semibold text-lg hover:text-primary">
                   {appointment.patient?.firstName} {appointment.patient?.lastName}
                 </h3>
                 <p className="text-sm text-gray-600 font-mono">
                   {appointment.patient?.patientNumber}
                 </p>
-              </div>
+              </button>
               {appointment.isPriority && (
-                <Badge variant="destructive" className="text-xs">
+                <Badge variant="destructive" className="text-xs self-start">
                   <AlertCircle className="w-3 h-3 mr-1" />
                   Priority
                 </Badge>
               )}
             </div>
 
-            {/* Hospital & Date */}
-            <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
               <div className="flex items-center gap-1">
                 <Hospital
                   className="w-4 h-4"
@@ -1052,17 +1053,15 @@ function AppointmentDiagnosisCard({
               </div>
             </div>
 
-            {/* Chief Complaint */}
-            <div className="bg-blue-50 p-2 rounded-lg mb-2">
+            <div className="bg-blue-50 p-2 rounded-lg">
               <p className="text-sm font-medium text-gray-700">Chief Complaint:</p>
               <p className="text-sm text-gray-900 font-medium">{appointment.chiefComplaint}</p>
             </div>
 
-            {/* Triage Vital Signs */}
             {(appointment.temperature || appointment.bloodPressure || appointment.heartRate || appointment.oxygenSaturation) && (
-              <div className="bg-green-50 p-2 rounded-lg mb-2">
+              <div className="bg-green-50 p-2 rounded-lg">
                 <p className="text-xs font-medium text-gray-700 mb-1">Triage Vital Signs:</p>
-                <div className="flex items-center gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3 text-xs">
                   {appointment.temperature && (
                     <div className="flex items-center gap-1">
                       <Thermometer className="w-3 h-3 text-orange-600" />
@@ -1091,30 +1090,30 @@ function AppointmentDiagnosisCard({
               </div>
             )}
 
-            {/* Patient Info */}
-            <div className="flex items-center gap-4 text-xs text-gray-600">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
               <span>Age: {appointment.patient?.age || "N/A"}</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>Gender: {appointment.patient?.gender || "N/A"}</span>
               {appointment.patient?.allergies && (
-                <>
-                  <span>•</span>
-                  <span className="text-red-600 font-medium">⚠️ Allergies</span>
-                </>
+                <span className="text-red-600 font-medium">⚠️ Allergies</span>
               )}
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 w-full sm:flex-row sm:justify-stretch xl:w-auto xl:flex-col">
             <Button
               onClick={onDiagnose}
-              className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap"
+              className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap w-full sm:w-auto xl:w-full"
             >
               <Brain className="w-4 h-4 mr-2" />
               Diagnose
             </Button>
-            <Button variant="outline" size="sm" onClick={onViewPatient}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onViewPatient}
+              className="w-full sm:w-auto xl:w-full"
+            >
               <Eye className="w-4 h-4 mr-1" />
               View Patient
             </Button>

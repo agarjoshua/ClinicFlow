@@ -459,13 +459,13 @@ export default function Procedures() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-center sm:text-left">
           <h1 className="text-3xl font-bold text-gray-900">Procedures</h1>
           <p className="text-gray-600 mt-1">Schedule and manage surgical procedures</p>
         </div>
-        <Badge variant="outline" className="text-lg px-4 py-2">
-          <Scissors className="w-5 h-5 mr-2" />
+        <Badge variant="outline" className="text-lg px-4 py-2 flex items-center gap-2 justify-center w-full sm:w-auto">
+          <Scissors className="w-5 h-5" />
           {filteredProcedures.length} {activeTab}
         </Badge>
       </div>
@@ -483,7 +483,7 @@ export default function Procedures() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureStatus)}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="scheduled">
             <Clock className="w-4 h-4 mr-2" />
             Scheduled
@@ -956,24 +956,26 @@ function ProcedureCard({
   return (
     <Card className="hover-elevate">
       <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          <div
-            className="w-1 h-20 rounded-full"
-            style={{ backgroundColor: procedure.hospital?.color || "#f97316" }}
-          />
-
-          <div className="cursor-pointer" onClick={onViewPatient}>
-            <PatientAvatar
-              firstName={procedure.patient?.firstName}
-              lastName={procedure.patient?.lastName}
-              age={procedure.patient?.age}
-              gender={procedure.patient?.gender}
-              size="md"
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center xl:items-start xl:gap-6">
+            <div
+              className="w-full h-1 rounded-full sm:w-1 sm:h-20"
+              style={{ backgroundColor: procedure.hospital?.color || "#f97316" }}
             />
+
+            <button className="cursor-pointer" onClick={onViewPatient} type="button">
+              <PatientAvatar
+                firstName={procedure.patient?.firstName}
+                lastName={procedure.patient?.lastName}
+                age={procedure.patient?.age}
+                gender={procedure.patient?.gender}
+                size="md"
+              />
+            </button>
           </div>
 
-          <div className="flex-1">
-            <div className="flex items-start justify-between mb-2">
+          <div className="flex-1 space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="font-semibold text-lg">
                   {procedure.patient?.firstName} {procedure.patient?.lastName}
@@ -982,16 +984,16 @@ function ProcedureCard({
                   {procedure.patient?.patientNumber}
                 </p>
               </div>
-              <Badge className={statusColors[procedure.status as ProcedureStatus]}>
+              <Badge className={`${statusColors[procedure.status as ProcedureStatus]} w-fit self-start`}>
                 {procedure.status}
               </Badge>
             </div>
 
-            <div className="bg-orange-50 p-2 rounded-lg mb-2">
+            <div className="bg-orange-50 p-2 rounded-lg">
               <p className="text-sm font-medium">{procedure.procedureType}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+            <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2">
               <div className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
                 <span>{format(parseISO(procedure.scheduledDate), "MMM dd, yyyy")}</span>
@@ -1001,28 +1003,36 @@ function ProcedureCard({
                 <span>{procedure.scheduledTime}</span>
               </div>
               {procedure.consultant && (
-                <div className="flex items-center gap-1 col-span-2">
+                <div className="flex items-center gap-1 sm:col-span-2">
                   <User className="w-4 h-4" />
-                  <span className="font-medium">
-                    {procedure.consultant.name}
-                  </span>
+                  <span className="font-medium">{procedure.consultant.name}</span>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Button size="sm" onClick={onView}>
+          <div className="flex flex-col gap-2 w-full sm:flex-row sm:justify-stretch xl:w-auto xl:flex-col">
+            <Button size="sm" onClick={onView} className="w-full sm:w-auto xl:w-full">
               <Eye className="w-4 h-4 mr-1" />
               View
             </Button>
             {procedure.status === "scheduled" && (
               <>
-                <Button size="sm" variant="outline" onClick={onEdit}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onEdit}
+                  className="w-full sm:w-auto xl:w-full"
+                >
                   <Edit className="w-4 h-4 mr-1" />
                   Edit
                 </Button>
-                <Button size="sm" variant="destructive" onClick={onDelete}>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={onDelete}
+                  className="w-full sm:w-auto xl:w-full"
+                >
                   <Trash2 className="w-4 h-4 mr-1" />
                   Delete
                 </Button>
@@ -1048,8 +1058,8 @@ function ClinicalCaseCard({
   return (
     <Card className="hover-elevate">
       <CardContent className="p-4">
-        <div className="flex items-start gap-4">
-          <div className="cursor-pointer" onClick={onViewPatient}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <button className="cursor-pointer self-center lg:self-start" onClick={onViewPatient} type="button">
             <PatientAvatar
               firstName={clinicalCase.patient?.firstName}
               lastName={clinicalCase.patient?.lastName}
@@ -1057,10 +1067,10 @@ function ClinicalCaseCard({
               gender={clinicalCase.patient?.gender}
               size="md"
             />
-          </div>
+          </button>
 
-          <div className="flex-1">
-            <div className="mb-2">
+          <div className="flex-1 space-y-3">
+            <div className="text-center lg:text-left">
               <h3 className="font-semibold text-lg">
                 {clinicalCase.patient?.firstName} {clinicalCase.patient?.lastName}
               </h3>
@@ -1070,7 +1080,7 @@ function ClinicalCaseCard({
             </div>
 
             {clinicalCase.diagnosisNotes && (
-              <div className="bg-blue-50 p-2 rounded-lg mb-2">
+              <div className="bg-blue-50 p-2 rounded-lg">
                 <p className="text-sm font-medium text-gray-700">Diagnosis:</p>
                 <p className="text-sm text-gray-900">{clinicalCase.diagnosisNotes}</p>
               </div>
@@ -1084,15 +1094,20 @@ function ClinicalCaseCard({
             )}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 w-full sm:flex-row sm:justify-stretch lg:w-auto lg:flex-col">
             <Button
               onClick={onSchedule}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto lg:w-full"
             >
               <Scissors className="w-4 h-4 mr-2" />
               Schedule
             </Button>
-            <Button variant="outline" size="sm" onClick={onViewPatient}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onViewPatient}
+              className="w-full sm:w-auto lg:w-full"
+            >
               <Eye className="w-4 h-4 mr-1" />
               View Patient
             </Button>

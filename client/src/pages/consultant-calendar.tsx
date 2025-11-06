@@ -107,75 +107,81 @@ export default function ConsultantCalendar() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            My Clinic Calendar
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage your clinic sessions across all hospitals
-          </p>
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              My Clinic Calendar
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              Manage your clinic sessions
+            </p>
+          </div>
+          <Button 
+            onClick={() => setLocation("/schedule-clinic")}
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Schedule New Clinic</span>
+            <span className="sm:hidden">New Clinic</span>
+          </Button>
         </div>
-        <Button 
-          onClick={() => setLocation("/schedule-clinic")}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Schedule New Clinic
-        </Button>
-      </div>
 
       {/* Month Navigation */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <div className="text-center min-w-[200px]">
-              <p className="text-xl font-bold">
-                {format(currentMonth, "MMMM yyyy")}
-              </p>
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <div className="text-center min-w-[140px] sm:min-w-[200px]">
+                <p className="text-lg sm:text-xl font-bold">
+                  {format(currentMonth, "MMM yyyy")}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              onClick={() => setCurrentMonth(new Date())}
+              className="w-full sm:w-auto"
             >
-              <ChevronRight className="w-4 h-4" />
+              Today
             </Button>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setCurrentMonth(new Date())}
-          >
-            Today
-          </Button>
         </CardHeader>
       </Card>
 
       {/* Hospital Legend */}
-      <Card>
+      <Card className="hidden sm:block">
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-gray-600">
+          <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">
             Hospital Color Codes
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {hospitals.map((hospital) => (
               <div key={hospital.id} className="flex items-center gap-2">
                 <div
-                  className="w-4 h-4 rounded"
+                  className="w-3 sm:w-4 h-3 sm:h-4 rounded"
                   style={{ backgroundColor: hospital.color }}
                 />
-                <span className="text-sm font-medium">{hospital.name}</span>
+                <span className="text-xs sm:text-sm font-medium">{hospital.name}</span>
               </div>
             ))}
           </div>
@@ -196,9 +202,9 @@ export default function ConsultantCalendar() {
       ) : clinicSessions.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <CalendarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Clinic Sessions This Month</h3>
-            <p className="text-gray-500 mb-6">You haven't scheduled any clinic sessions for this month yet.</p>
+            <CalendarIcon className="w-12 sm:w-16 h-12 sm:h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No Clinic Sessions This Month</h3>
+            <p className="text-sm text-gray-500 mb-6">You haven't scheduled any clinic sessions for this month yet.</p>
             <Button 
               onClick={() => setLocation("/schedule-clinic")}
               className="bg-blue-600 hover:bg-blue-700"
@@ -210,18 +216,18 @@ export default function ConsultantCalendar() {
         </Card>
       ) : (
         <Card>
-          <CardContent className="p-4">
-            {/* Day Headers */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
+          <CardContent className="p-2 sm:p-4">
+            {/* Day Headers - Hidden on mobile */}
+            <div className="hidden sm:grid grid-cols-7 gap-2 mb-2">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="text-center font-semibold text-sm text-gray-600 py-2">
+                <div key={day} className="text-center font-semibold text-xs sm:text-sm text-gray-600 py-2">
                   {day}
                 </div>
               ))}
             </div>
             
-            {/* Calendar Days */}
-            <div className="grid grid-cols-7 gap-2">
+            {/* Calendar Days - Grid on desktop, List on mobile */}
+            <div className="hidden sm:grid grid-cols-7 gap-2">
               {daysInCalendar.map((day) => {
                 const sessions = getSessionsForDay(day);
                 const isToday = isSameDay(day, new Date());
@@ -230,7 +236,7 @@ export default function ConsultantCalendar() {
                 return (
                   <div
                     key={day.toString()}
-                    className={`min-h-[120px] p-2 rounded-lg border cursor-pointer hover:shadow-md transition-all ${
+                    className={`min-h-[100px] sm:min-h-[120px] p-2 rounded-lg border cursor-pointer hover:shadow-md transition-all ${
                       isToday 
                         ? "border-blue-500 bg-blue-50" 
                         : isCurrentMonth 
@@ -242,7 +248,7 @@ export default function ConsultantCalendar() {
                       setDialogOpen(true);
                     }}
                   >
-                    <div className={`text-right mb-1 ${
+                    <div className={`text-right mb-1 text-xs sm:text-sm ${
                       isToday 
                         ? "text-blue-600 font-bold" 
                         : isCurrentMonth 
@@ -254,7 +260,7 @@ export default function ConsultantCalendar() {
                     
                     <div className="space-y-1">
                       {sessions.length === 0 ? (
-                        <div className="text-xs text-gray-300 text-center py-4">
+                        <div className="text-xs text-gray-300 text-center py-2 sm:py-4">
                           {/* Empty day */}
                         </div>
                       ) : (
@@ -265,7 +271,7 @@ export default function ConsultantCalendar() {
                           return (
                             <div
                               key={session.id}
-                              className="p-2 rounded border-l-4 bg-white hover:shadow-md transition-all text-xs"
+                              className="p-1.5 sm:p-2 rounded border-l-4 bg-white hover:shadow-md transition-all text-xs"
                               style={{ borderLeftColor: session.hospital?.color || "#3b82f6" }}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -273,26 +279,26 @@ export default function ConsultantCalendar() {
                               }}
                             >
                               <div className="flex items-center gap-1 mb-1">
-                                <Hospital className="w-3 h-3" />
-                                <span className="font-semibold truncate">
+                                <Hospital className="w-3 h-3 flex-shrink-0" />
+                                <span className="font-semibold truncate text-xs">
                                   {session.hospital?.code || "Hospital"}
                                 </span>
                               </div>
 
                               <div className="flex items-center gap-1 text-gray-600 mb-1">
-                                <Clock className="w-2 h-2" />
-                                <span className="text-[10px]">{session.start_time}</span>
+                                <Clock className="w-2 h-2 flex-shrink-0" />
+                                <span className="text-[9px] sm:text-[10px]">{session.start_time}</span>
                               </div>
 
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1">
-                                  <Users className="w-3 h-3 text-gray-500" />
-                                  <span className="font-medium text-[10px]">
+                                  <Users className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                  <span className="font-medium text-[9px] sm:text-[10px]">
                                     {appointmentCount}/{session.max_patients}
                                   </span>
                                 </div>
                                 {priorityCount > 0 && (
-                                  <Badge variant="destructive" className="text-[9px] h-4 px-1">
+                                  <Badge variant="destructive" className="text-[8px] sm:text-[9px] h-4 px-1 flex-shrink-0">
                                     {priorityCount}!
                                   </Badge>
                                 )}
@@ -302,6 +308,51 @@ export default function ConsultantCalendar() {
                         })
                       )}
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Mobile List View */}
+            <div className="sm:hidden space-y-2">
+              {daysInCalendar.map((day) => {
+                const sessions = getSessionsForDay(day);
+                const isToday = isSameDay(day, new Date());
+                const isCurrentMonth = isSameMonth(day, currentMonth);
+
+                if (!isCurrentMonth || sessions.length === 0) return null;
+
+                return (
+                  <div key={day.toString()} className="space-y-2">
+                    <div className={`text-sm font-semibold px-2 py-1 rounded ${isToday ? "bg-blue-100 text-blue-900" : "bg-gray-100"}`}>
+                      {format(day, "EEE, MMM d")}
+                    </div>
+                    {sessions.map((session) => (
+                      <div
+                        key={session.id}
+                        className="p-3 rounded-lg border-l-4 bg-white border border-gray-200 cursor-pointer active:shadow-md"
+                        style={{ borderLeftColor: session.hospital?.color || "#3b82f6" }}
+                        onClick={() => setLocation(`/clinic-sessions/${session.id}`)}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <h3 className="font-semibold text-sm text-gray-900">{session.hospital?.name}</h3>
+                            <p className="text-xs text-gray-600 mt-0.5">{session.start_time}</p>
+                          </div>
+                          {getPriorityCount(session) > 0 && (
+                            <Badge variant="destructive" className="text-xs">
+                              {getPriorityCount(session)}!
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {getTotalAppointments(session)}/{session.max_patients}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 );
               })}
@@ -363,6 +414,7 @@ export default function ConsultantCalendar() {
         date={selectedDate}
         sessions={selectedDate ? getSessionsForDay(selectedDate) : []}
       />
+      </div>
     </div>
   );
 }

@@ -543,32 +543,48 @@ export default function PatientDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={handleBack}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Button
+          variant="ghost"
+          onClick={handleBack}
+          className="w-full sm:w-auto justify-center"
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full justify-center sm:w-auto sm:justify-end">
           {isEditing ? (
             <>
-              <Button variant="outline" onClick={handleCancel}>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                className="flex-1 sm:flex-none"
+              >
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={updateMutation.isPending}>
+              <Button
+                onClick={handleSave}
+                disabled={updateMutation.isPending}
+                className="flex-1 sm:flex-none"
+              >
                 <Save className="w-4 h-4 mr-2" />
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={handleEdit}>
+              <Button
+                variant="outline"
+                onClick={handleEdit}
+                className="flex-1 sm:flex-none"
+              >
                 <Edit className="w-4 h-4 mr-2" />
                 Edit Patient
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
+                  <Button variant="destructive" className="flex-1 sm:flex-none">
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete Patient
                   </Button>
@@ -605,22 +621,24 @@ export default function PatientDetail() {
       {/* Patient Overview */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-start gap-6">
-            <PatientAvatarWithInitials
-              firstName={displayPatient.firstName}
-              lastName={displayPatient.lastName}
-              dateOfBirth={displayPatient.dateOfBirth}
-              age={displayPatient.age}
-              gender={displayPatient.gender}
-              size="xl"
-              showInitials={false}
-            />
-            
-            <div className="flex-1">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+            <div className="flex justify-center sm:block">
+              <PatientAvatarWithInitials
+                firstName={displayPatient.firstName}
+                lastName={displayPatient.lastName}
+                dateOfBirth={displayPatient.dateOfBirth}
+                age={displayPatient.age}
+                gender={displayPatient.gender}
+                size="xl"
+                showInitials={false}
+              />
+            </div>
+
+            <div className="flex-1 w-full">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-4">
+                <div className="flex-1 text-center md:text-left">
                   {isEditing ? (
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                       <div>
                         <Label>First Name</Label>
                         <Input
@@ -639,7 +657,7 @@ export default function PatientDetail() {
                   ) : (
                     <h1 className="text-3xl font-bold mb-2">{fullName}</h1>
                   )}
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                     <Badge variant="outline" className="font-mono">
                       {patient.patientNumber}
                     </Badge>
@@ -650,7 +668,7 @@ export default function PatientDetail() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-gray-500" />
                   <div>
@@ -910,20 +928,31 @@ export default function PatientDetail() {
       {/* Clinical Cases (Diagnoses) - Redesigned */}
       <Card>
         <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
-          <CardTitle className="flex items-center gap-2 text-indigo-900">
-            <Brain className="w-6 h-6" />
-            Clinical Cases & Medical Records
-          </CardTitle>
-          <p className="text-sm text-indigo-700 mt-1">
-            {clinicalCases.length} {clinicalCases.length === 1 ? 'case' : 'cases'} recorded
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-indigo-900">
+                <Brain className="w-6 h-6" />
+                Clinical Cases & Medical Records
+              </CardTitle>
+              <p className="text-sm text-indigo-700 mt-1">
+                {clinicalCases.length} {clinicalCases.length === 1 ? 'case' : 'cases'} recorded
+              </p>
+            </div>
+            <Button
+              onClick={() => setLocation("/diagnoses")}
+              className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Clinical Case
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           {clinicalCases.length === 0 ? (
             <div className="text-center py-12">
               <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 font-medium">No clinical cases recorded yet</p>
-              <p className="text-gray-400 text-sm mt-2">Diagnoses will appear here once recorded</p>
+              <p className="text-gray-400 text-sm mt-2">Click "Add Clinical Case" to create your first diagnosis</p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -931,10 +960,10 @@ export default function PatientDetail() {
                 <div key={clinicalCase.id} className="border-l-4 border-indigo-500 bg-white rounded-r-lg shadow-sm hover:shadow-md transition-shadow">
                   {/* Case Header with Media Preview */}
                   <div className="p-5">
-                    <div className="flex items-start gap-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
                       {/* Media Preview Thumbnail - Prominent Position */}
                       {clinicalCase.medical_images && clinicalCase.medical_images.length > 0 && (
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 self-center lg:self-start">
                           <button
                             onClick={() => {
                               setSelectedMedia(clinicalCase.medical_images[0]);
@@ -971,12 +1000,12 @@ export default function PatientDetail() {
                       
                       {/* Case Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-3">
+                          <div className="flex-1 text-center md:text-left">
                             <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">
                               {clinicalCase.diagnosis_notes || `Case #${index + 1}`}
                             </h3>
-                            <div className="flex items-center gap-3 text-sm text-gray-600">
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-sm text-gray-600">
                               <span className="flex items-center gap-1">
                                 <UserCircle className="w-4 h-4" />
                                 {clinicalCase.consultant?.name || "Unknown"}
@@ -1002,7 +1031,7 @@ export default function PatientDetail() {
                         </div>
 
                         {/* Condensed Clinical Details Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
                           {clinicalCase.symptoms && (
                             <div className="bg-blue-50 border border-blue-200 p-2 rounded-md">
                               <p className="text-xs font-semibold text-blue-900 mb-1">Symptoms</p>
@@ -1047,7 +1076,7 @@ export default function PatientDetail() {
 
                     {/* Full Media Gallery - Below Case Info */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
                         <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                           <Image className="w-4 h-4" />
                           Attached Media ({clinicalCase.medical_images?.length || 0})
@@ -1056,7 +1085,7 @@ export default function PatientDetail() {
                           size="sm"
                           variant="outline"
                           onClick={() => handleAddMedia(clinicalCase)}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1 w-full sm:w-auto"
                         >
                           <Plus className="w-4 h-4" />
                           Add Media
@@ -1064,7 +1093,7 @@ export default function PatientDetail() {
                       </div>
                       
                       {clinicalCase.medical_images && clinicalCase.medical_images.length > 0 ? (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                           {clinicalCase.medical_images.map((media: any) => (
                             <div key={media.id} className="relative group">
                               <button
@@ -1144,13 +1173,13 @@ export default function PatientDetail() {
           ) : (
             <div className="space-y-3">
               {appointments.map((appointment: any) => (
-                <div key={appointment.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div 
-                    className="w-1 h-16 rounded-full" 
+                <div key={appointment.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div
+                    className="w-full sm:w-1 h-1 sm:h-16 rounded-full"
                     style={{ backgroundColor: appointment.clinic_session?.hospital?.color || "#3b82f6" }}
                   />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="flex-1 w-full">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <p className="font-medium">
                         {appointment.clinic_session?.hospital?.name || "Unknown Hospital"}
                       </p>
@@ -1159,7 +1188,7 @@ export default function PatientDetail() {
                         <Badge variant="destructive">Priority</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                       <span className="font-mono">{appointment.booking_number}</span>
                       {appointment.clinic_session && (
                         <>

@@ -92,7 +92,7 @@ export default function ScheduleClinic() {
         title: "Clinic Session Scheduled",
         description: "Your clinic session has been successfully scheduled.",
       });
-      setLocation("/");
+      window.history.back();
     },
     onError: (error: any) => {
       toast({
@@ -114,7 +114,7 @@ export default function ScheduleClinic() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setLocation("/")}
+          onClick={() => window.history.back()}
           className="flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -256,7 +256,7 @@ export default function ScheduleClinic() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setLocation("/")}
+                onClick={() => window.history.back()}
               >
                 Cancel
               </Button>

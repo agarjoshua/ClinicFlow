@@ -161,12 +161,12 @@ export default function Hospitals() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-center sm:text-left">
           <h1 className="text-3xl font-bold">Hospitals</h1>
           <p className="text-gray-600 mt-1">Manage hospital and clinic locations</p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Add Hospital
         </Button>
@@ -183,63 +183,65 @@ export default function Hospitals() {
           {isLoading ? (
             <div className="text-center py-8 text-gray-500">Loading hospitals...</div>
           ) : hospitals && hospitals.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {hospitals.map((hospital) => (
-                  <TableRow key={hospital.id}>
-                    <TableCell className="font-medium">{hospital.name}</TableCell>
-                    <TableCell>
-                      <code className="px-2 py-1 bg-gray-100 rounded text-sm">
-                        {hospital.code}
-                      </code>
-                    </TableCell>
-                    <TableCell className="text-gray-600">{hospital.address || "—"}</TableCell>
-                    <TableCell className="text-gray-600">{hospital.phone || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-6 h-6 rounded border"
-                          style={{ backgroundColor: hospital.color }}
-                        />
-                        <span className="text-sm text-gray-500">{hospital.color}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenDialog(hospital)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm(`Delete ${hospital.name}?`)) {
-                              deleteMutation.mutate(hospital.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Color</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {hospitals.map((hospital) => (
+                    <TableRow key={hospital.id}>
+                      <TableCell className="font-medium">{hospital.name}</TableCell>
+                      <TableCell>
+                        <code className="px-2 py-1 bg-gray-100 rounded text-sm">
+                          {hospital.code}
+                        </code>
+                      </TableCell>
+                      <TableCell className="text-gray-600">{hospital.address || "—"}</TableCell>
+                      <TableCell className="text-gray-600">{hospital.phone || "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-6 h-6 rounded border"
+                            style={{ backgroundColor: hospital.color }}
+                          />
+                          <span className="text-sm text-gray-500">{hospital.color}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenDialog(hospital)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm(`Delete ${hospital.name}?`)) {
+                                deleteMutation.mutate(hospital.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="text-center py-12">
               <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />

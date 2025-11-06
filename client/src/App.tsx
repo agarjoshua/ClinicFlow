@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import AssistantDashboard from "@/pages/assistant-dashboard";
+import AssistantCalendar from "@/pages/assistant-calendar";
 import AuthPage from "@/pages/auth";
 import Patients from "@/pages/patients";
 import PatientForm from "@/pages/patient-form";
@@ -32,6 +33,7 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
       <Route path="/">
         {userRole === "consultant" ? <ConsultantCalendar /> : <AssistantDashboard />}
       </Route>
+      <Route path="/calendar" component={AssistantCalendar} />
       <Route path="/schedule-clinic" component={ScheduleClinic} />
       <Route path="/clinic-sessions/:id" component={ClinicSessionDetail} />
       <Route path="/appointments" component={Appointments} />
@@ -46,7 +48,6 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
       <Route path="/clinical-cases" component={ClinicalCases} />
       <Route path="/procedures" component={Procedures} />
       <Route path="/hospitals" component={Hospitals} />
-      <Route path="/consultant-calendar-demo" component={ConsultantCalendar} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
