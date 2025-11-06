@@ -80,6 +80,11 @@ const assistantMenuItems = [
     url: "/discharged",
     icon: UserCheck,
   },
+  {
+    title: "Hospitals",
+    url: "/hospitals",
+    icon: Hospital,
+  },
   // Temporary - for testing consultant view
   {
     title: "📅 Consultant Calendar (Demo)",

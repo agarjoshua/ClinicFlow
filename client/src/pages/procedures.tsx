@@ -81,6 +81,8 @@ export default function Procedures() {
   const [notes, setNotes] = useState("");
   const [selectedCase, setSelectedCase] = useState<any>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [doctorSearchOpen, setDoctorSearchOpen] = useState(false);
   
   const { toast } = useToast();
 
@@ -110,6 +112,11 @@ export default function Procedures() {
             name,
             code,
             color
+          ),
+          consultant:users!procedures_consultant_id_fkey (
+            id,
+            name,
+            role
           )
         `)
         .eq("status", activeTab)
@@ -136,6 +143,7 @@ export default function Procedures() {
         } : null,
         clinicalCase: proc.clinical_case,
         hospital: proc.hospital,
+        consultant: proc.consultant,
       }));
     },
   });
@@ -192,21 +200,23 @@ export default function Procedures() {
     },
   });
 
+  // Fetch doctors/consultants
+  const { data: doctors = [] } = useQuery({
+    queryKey: ["doctors"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, name, role")
+        .in("role", ["doctor", "consultant"])
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Schedule procedure mutation
   const scheduleProcedureMutation = useMutation({
     mutationFn: async (procedureData: any) => {
-      // Get current user for consultant_id
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No authenticated user");
-      
-      const { data: userData } = await supabase
-        .from("users")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (!userData) throw new Error("User record not found");
-
       // Create the procedure
       const { data, error } = await supabase
         .from("procedures")
@@ -214,7 +224,7 @@ export default function Procedures() {
           clinical_case_id: procedureData.clinicalCaseId,
           patient_id: procedureData.patientId,
           hospital_id: procedureData.hospitalId,
-          consultant_id: userData.id,
+          consultant_id: procedureData.consultantId,
           procedure_type: procedureData.procedureType,
           scheduled_date: procedureData.scheduledDate,
           scheduled_time: procedureData.scheduledTime,
@@ -294,6 +304,7 @@ export default function Procedures() {
           scheduled_date: procedureData.scheduledDate,
           scheduled_time: procedureData.scheduledTime,
           special_instructions: procedureData.notes,
+          consultant_id: procedureData.consultantId,
         })
         .eq("id", procedureData.id);
 
@@ -362,6 +373,7 @@ export default function Procedures() {
     setScheduledDate(procedure.scheduledDate || "");
     setScheduledTime(procedure.scheduledTime || "");
     setNotes(procedure.specialInstructions || "");
+    setSelectedDoctorId(procedure.consultant?.id || "");
     setSelectedProcedure(procedure);
     setScheduleDialogOpen(true);
   };
@@ -378,10 +390,20 @@ export default function Procedures() {
     setScheduledDate("");
     setScheduledTime("");
     setNotes("");
+    setSelectedDoctorId("");
     setEditMode(false);
   };
 
   const handleSchedule = () => {
+    if (!selectedDoctorId) {
+      toast({
+        title: "Error",
+        description: "Please select a doctor/consultant",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (editMode && selectedProcedure) {
       // Update existing procedure
       updateProcedureMutation.mutate({
@@ -390,6 +412,7 @@ export default function Procedures() {
         scheduledDate,
         scheduledTime,
         notes,
+        consultantId: selectedDoctorId,
       });
     } else if (!editMode && selectedCase) {
       // Create new procedure
@@ -401,6 +424,7 @@ export default function Procedures() {
         scheduledDate,
         scheduledTime,
         notes,
+        consultantId: selectedDoctorId,
       });
     }
   };
@@ -660,6 +684,52 @@ export default function Procedures() {
               />
             </div>
 
+            <div>
+              <Label htmlFor="doctor">Assigned Doctor/Consultant *</Label>
+              <Popover open={doctorSearchOpen} onOpenChange={setDoctorSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={doctorSearchOpen}
+                    className="w-full justify-between mt-1"
+                  >
+                    {selectedDoctorId
+                      ? doctors.find((doc: any) => doc.id === selectedDoctorId)?.name || "Select doctor..."
+                      : "Select doctor..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search doctors..." />
+                    <CommandList>
+                      <CommandEmpty>No doctors found.</CommandEmpty>
+                      <CommandGroup>
+                        {doctors.map((doctor: any) => (
+                          <CommandItem
+                            key={doctor.id}
+                            value={doctor.name}
+                            onSelect={() => {
+                              setSelectedDoctorId(doctor.id);
+                              setDoctorSearchOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${
+                                selectedDoctorId === doctor.id ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            {doctor.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="scheduledDate">Scheduled Date *</Label>
@@ -875,9 +945,11 @@ function ProcedureCard({
   onUpdateStatus: (status: ProcedureStatus) => void;
   onViewPatient: () => void;
 }) {
-  const statusColors = {
+  const statusColors: Record<string, string> = {
+    planned: "bg-gray-100 text-gray-800",
     scheduled: "bg-blue-100 text-blue-800",
     done: "bg-green-100 text-green-800",
+    postponed: "bg-yellow-100 text-yellow-800",
     cancelled: "bg-red-100 text-red-800",
   };
 
@@ -928,6 +1000,14 @@ function ProcedureCard({
                 <Clock className="w-4 h-4" />
                 <span>{procedure.scheduledTime}</span>
               </div>
+              {procedure.consultant && (
+                <div className="flex items-center gap-1 col-span-2">
+                  <User className="w-4 h-4" />
+                  <span className="font-medium">
+                    {procedure.consultant.name}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
