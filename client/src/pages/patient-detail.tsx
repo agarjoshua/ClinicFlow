@@ -91,6 +91,20 @@ export default function PatientDetail() {
   const [newMediaType, setNewMediaType] = useState<"image" | "video" | "link">("image");
   const [newMediaLink, setNewMediaLink] = useState("");
   const [newMediaDescription, setNewMediaDescription] = useState("");
+  
+  // Clinical case creation state
+  const [createCaseDialogOpen, setCreateCaseDialogOpen] = useState(false);
+  const [caseSymptoms, setCaseSymptoms] = useState("");
+  const [caseDiagnosisNotes, setCaseDiagnosisNotes] = useState("");
+  const [caseNeurologicalExam, setCaseNeurologicalExam] = useState("");
+  const [caseImagingFindings, setCaseImagingFindings] = useState("");
+  const [caseMedications, setCaseMedications] = useState("");
+  const [caseTreatmentPlan, setCaseTreatmentPlan] = useState("");
+  const [caseMediaItems, setCaseMediaItems] = useState<any[]>([]);
+  const [caseMediaType, setCaseMediaType] = useState<"image" | "video" | "link">("image");
+  const [caseMediaLink, setCaseMediaLink] = useState("");
+  const [caseMediaDescription, setCaseMediaDescription] = useState("");
+  const [caseMediaFile, setCaseMediaFile] = useState<File | null>(null);
 
   // Smart back navigation
   const handleBack = () => {
@@ -400,6 +414,96 @@ export default function PatientDetail() {
       });
     },
   });
+  
+  // Create clinical case mutation
+  const createCaseMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No authenticated user");
+
+      const { data: userData } = await supabase
+        .from("users")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!userData) throw new Error("User record not found");
+
+      const { data, error } = await supabase
+        .from("clinical_cases")
+        .insert({
+          patient_id: patientId,
+          consultant_id: userData.id,
+          symptoms: caseSymptoms,
+          diagnosis_notes: caseDiagnosisNotes,
+          neurological_exam: caseNeurologicalExam,
+          imaging_findings: caseImagingFindings,
+          medications: caseMedications,
+          treatment_plan: caseTreatmentPlan,
+          case_date: new Date().toISOString().split('T')[0],
+          status: "active",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // Upload media files if any
+      if (caseMediaItems && caseMediaItems.length > 0) {
+        for (const media of caseMediaItems) {
+          let fileUrl = media.link;
+          
+          if (media.file) {
+            const sanitizedFileName = media.file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const fileName = `${Date.now()}-${data.id}-${sanitizedFileName}`;
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from("medical-media")
+              .upload(fileName, media.file, {
+                cacheControl: '3600',
+                contentType: media.file.type || 'application/octet-stream'
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrl } = supabase.storage
+              .from("medical-media")
+              .getPublicUrl(fileName);
+
+            fileUrl = publicUrl.publicUrl;
+          }
+
+          await supabase.from("medical_images").insert({
+            clinical_case_id: data.id,
+            file_type: media.type,
+            image_type: "Photo",
+            image_url: fileUrl,
+            file_name: media.file?.name || "Link",
+            file_size: media.file?.size || null,
+            description: media.description,
+            uploaded_by: userData.id,
+          });
+        }
+      }
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+      toast({
+        title: "Success",
+        description: "Clinical case created successfully with media",
+      });
+      handleCloseCreateCaseDialog();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create clinical case",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Initialize edited patient when data loads
   if (patient && !editedPatient && !isEditing) {
@@ -427,6 +531,66 @@ export default function PatientDetail() {
   const handleAddMedia = (clinicalCase: any) => {
     setSelectedCaseForMedia(clinicalCase);
     setAddMediaDialogOpen(true);
+  };
+  
+  const handleOpenCreateCaseDialog = () => {
+    setCreateCaseDialogOpen(true);
+  };
+  
+  const handleCloseCreateCaseDialog = () => {
+    setCreateCaseDialogOpen(false);
+    setCaseSymptoms("");
+    setCaseDiagnosisNotes("");
+    setCaseNeurologicalExam("");
+    setCaseImagingFindings("");
+    setCaseMedications("");
+    setCaseTreatmentPlan("");
+    setCaseMediaItems([]);
+    setCaseMediaType("image");
+    setCaseMediaLink("");
+    setCaseMediaDescription("");
+    setCaseMediaFile(null);
+  };
+  
+  const handleAddCaseMedia = () => {
+    if (caseMediaType === "link" && !caseMediaLink.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a link URL",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if ((caseMediaType === "image" || caseMediaType === "video") && !caseMediaFile) {
+      toast({
+        title: "Error",
+        description: "Please select a file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newMedia = {
+      id: Date.now(),
+      type: caseMediaType,
+      file: caseMediaFile,
+      link: caseMediaLink,
+      description: caseMediaDescription,
+    };
+
+    setCaseMediaItems([...caseMediaItems, newMedia]);
+    setCaseMediaFile(null);
+    setCaseMediaLink("");
+    setCaseMediaDescription("");
+    toast({
+      title: "Success",
+      description: "Media added to clinical case",
+    });
+  };
+
+  const handleRemoveCaseMedia = (id: number) => {
+    setCaseMediaItems(caseMediaItems.filter((m: any) => m.id !== id));
   };
 
   const handleUploadMedia = () => {
@@ -939,7 +1103,7 @@ export default function PatientDetail() {
               </p>
             </div>
             <Button
-              onClick={() => setLocation("/diagnoses")}
+              onClick={handleOpenCreateCaseDialog}
               className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -1317,6 +1481,220 @@ export default function PatientDetail() {
         open={mediaDialogOpen}
         onOpenChange={setMediaDialogOpen}
       />
+      
+      {/* Create Clinical Case Dialog */}
+      <Dialog open={createCaseDialogOpen} onOpenChange={setCreateCaseDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="w-5 h-5" />
+              Create Clinical Case
+            </DialogTitle>
+            <DialogDescription>
+              Patient: {patient?.firstName} {patient?.lastName} (#{patient?.patientNumber})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="case-symptoms">Symptoms</Label>
+              <Textarea
+                id="case-symptoms"
+                placeholder="Document presenting symptoms..."
+                value={caseSymptoms}
+                onChange={(e) => setCaseSymptoms(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="case-neuro-exam">Neurological Examination</Label>
+              <Textarea
+                id="case-neuro-exam"
+                placeholder="Consciousness level, motor function, sensory function, reflexes, cranial nerves..."
+                value={caseNeurologicalExam}
+                onChange={(e) => setCaseNeurologicalExam(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="case-imaging">Imaging Findings</Label>
+              <Textarea
+                id="case-imaging"
+                placeholder="MRI/CT scan findings, lesion location, mass effect, edema..."
+                value={caseImagingFindings}
+                onChange={(e) => setCaseImagingFindings(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="case-diagnosis">Diagnosis Notes</Label>
+              <Textarea
+                id="case-diagnosis"
+                placeholder="Final diagnosis and clinical impression..."
+                value={caseDiagnosisNotes}
+                onChange={(e) => setCaseDiagnosisNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="case-medications">Medications</Label>
+              <Textarea
+                id="case-medications"
+                placeholder="Prescribed medications, dosages, and frequency..."
+                value={caseMedications}
+                onChange={(e) => setCaseMedications(e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="case-treatment">Treatment Plan</Label>
+              <Textarea
+                id="case-treatment"
+                placeholder="Treatment plan, follow-up, and recommendations..."
+                value={caseTreatmentPlan}
+                onChange={(e) => setCaseTreatmentPlan(e.target.value)}
+                rows={3}
+              />
+            </div>
+            
+            {/* Media Management */}
+            <Card className="border-blue-200 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  Media (Images, Videos, Links)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Tabs value={caseMediaType} onValueChange={(v: any) => setCaseMediaType(v)}>
+                  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
+                    <TabsTrigger value="image" className="flex items-center gap-1">
+                      <Image className="w-4 h-4" />
+                      Image
+                    </TabsTrigger>
+                    <TabsTrigger value="video" className="flex items-center gap-1">
+                      <Video className="w-4 h-4" />
+                      Video
+                    </TabsTrigger>
+                    <TabsTrigger value="link" className="flex items-center gap-1">
+                      <Link className="w-4 h-4" />
+                      Link
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="image" className="space-y-4">
+                    <div>
+                      <Label>Upload Image</Label>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setCaseMediaFile(e.target.files?.[0] || null)}
+                        className="mt-2"
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="video" className="space-y-4">
+                    <div>
+                      <Label>Upload Video</Label>
+                      <Input
+                        type="file"
+                        accept="video/*"
+                        onChange={(e) => setCaseMediaFile(e.target.files?.[0] || null)}
+                        className="mt-2"
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="link" className="space-y-4">
+                    <div>
+                      <Label>Link URL</Label>
+                      <Input
+                        type="url"
+                        placeholder="https://example.com/medical-scan"
+                        value={caseMediaLink}
+                        onChange={(e) => setCaseMediaLink(e.target.value)}
+                        className="mt-2"
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <div className="space-y-2">
+                  <Label>Description / Category</Label>
+                  <Input
+                    placeholder="e.g., MRI Scan, X-Ray, CT Scan, Pre-op Photo"
+                    value={caseMediaDescription}
+                    onChange={(e) => setCaseMediaDescription(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddCaseMedia}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Media
+                </Button>
+
+                {/* Media List */}
+                {caseMediaItems.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Added Media ({caseMediaItems.length})</Label>
+                    <div className="space-y-2">
+                      {caseMediaItems.map((media: any) => (
+                        <div
+                          key={media.id}
+                          className="flex items-center justify-between p-2 bg-white rounded-lg border"
+                        >
+                          <div className="flex items-center gap-2">
+                            {media.type === "image" && <Image className="w-4 h-4 text-blue-600" />}
+                            {media.type === "video" && <Video className="w-4 h-4 text-red-600" />}
+                            {media.type === "link" && <Link className="w-4 h-4 text-green-600" />}
+                            <div className="text-sm">
+                              <p className="font-medium">{media.description || "No description"}</p>
+                              <p className="text-xs text-gray-500">
+                                {media.file?.name || media.link || "Link"}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveCaseMedia(media.id)}
+                          >
+                            <X className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseCreateCaseDialog}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createCaseMutation.mutate()}
+              disabled={createCaseMutation.isPending}
+            >
+              {createCaseMutation.isPending ? "Creating..." : "Create Clinical Case"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
