@@ -15,6 +15,7 @@ import PatientForm from "@/pages/patient-form";
 import PatientDetail from "@/pages/patient-detail";
 import Discharged from "@/pages/discharged";
 import ConsultantCalendar from "@/pages/consultant-calendar";
+import ConsultantPatients from "@/pages/consultant-patients";
 import Appointments from "@/pages/appointments";
 import AppointmentForm from "@/pages/appointment-form";
 import Triage from "@/pages/triage";
@@ -34,6 +35,7 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
         {userRole === "consultant" ? <ConsultantCalendar /> : <AssistantDashboard />}
       </Route>
       <Route path="/calendar" component={AssistantCalendar} />
+      <Route path="/consultant-patients" component={ConsultantPatients} />
       <Route path="/schedule-clinic" component={ScheduleClinic} />
       <Route path="/clinic-sessions/:id" component={ClinicSessionDetail} />
       <Route path="/appointments" component={Appointments} />

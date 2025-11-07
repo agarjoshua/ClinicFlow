@@ -23,6 +23,11 @@ const consultantMenuItems = [
     icon: Calendar,
   },
   {
+    title: "Patients",
+    url: "/consultant-patients",
+    icon: Users,
+  },
+  {
     title: "Clinical Cases",
     url: "/clinical-cases",
     icon: Stethoscope,
