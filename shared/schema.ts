@@ -103,21 +103,70 @@ export const clinicalCases = pgTable("clinical_cases", {
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   consultantId: varchar("consultant_id").notNull().references(() => users.id),
   caseDate: timestamp("case_date").notNull().default(sql`now()`),
+  
+  // Legacy fields (preserved for backward compatibility)
   diagnosis: text("diagnosis"),
   diagnosisNotes: text("diagnosis_notes"),
   symptoms: text("symptoms"),
-  // Vital Signs
-  temperature: text("temperature"), // e.g., "98.6°F" or "37°C"
-  bloodPressure: text("blood_pressure"), // e.g., "120/80"
-  heartRate: integer("heart_rate"), // bpm
-  oxygenSaturation: integer("oxygen_saturation"), // %
-  // Clinical Findings
+  temperature: text("temperature"),
+  bloodPressure: text("blood_pressure"),
+  heartRate: integer("heart_rate"),
+  oxygenSaturation: integer("oxygen_saturation"),
   neurologicalExam: text("neurological_exam"),
   imagingFindings: text("imaging_findings"),
-  // Treatment
   treatmentPlan: text("treatment_plan"),
   medications: text("medications"),
   clinicalNotes: text("clinical_notes"),
+  
+  // APOC Structured Documentation Fields
+  documentationMode: text("documentation_mode").default('legacy'), // 'legacy' | 'apoc'
+  
+  // Section 1: Chief Complaint
+  chiefComplaint: text("chief_complaint"),
+  
+  // Section 2: History of Presenting Illness
+  historyPresentingIllness: text("history_presenting_illness"),
+  
+  // Section 3: Review of Systems
+  reviewOfSystems: text("review_of_systems"),
+  
+  // Section 4: Past Medical & Surgical History
+  pastMedicalSurgicalHistory: text("past_medical_surgical_history"),
+  
+  // Section 5: Developmental History (conditional: pediatric/stroke patients)
+  developmentalHistory: text("developmental_history"),
+  
+  // Section 6: Gynecological & Obstetric History (conditional: females only)
+  gyneObstetricHistory: text("gyne_obstetric_history"),
+  
+  // Section 7: Personal, Family & Social History
+  personalFamilySocialHistory: text("personal_family_social_history"),
+  
+  // Section 8: Vital Signs (APOC structured)
+  vitalSignsBp: text("vital_signs_bp"),
+  vitalSignsPr: integer("vital_signs_pr"),
+  vitalSignsSpo2: integer("vital_signs_spo2"),
+  vitalSignsTemp: decimal("vital_signs_temp", { precision: 4, scale: 1 }),
+  
+  // Section 9: Examination
+  cnsMotorExam: text("cns_motor_exam"),
+  cranialNervesExam: text("cranial_nerves_exam"),
+  cardiovascularExam: text("cardiovascular_exam"),
+  respiratoryExam: text("respiratory_exam"),
+  genitourinaryExam: text("genitourinary_exam"),
+  gastrointestinalExam: text("gastrointestinal_exam"),
+  
+  // Section 10: Diagnosis & Impression
+  diagnosisImpression: text("diagnosis_impression"),
+  strokeClassification: text("stroke_classification"), // 'ischemic' | 'hemorrhagic' | 'tia' | 'n/a'
+  
+  // Section 11: Investigations (linked to clinical_investigations table)
+  // Section 12: Plan (uses existing treatmentPlan field)
+  
+  // Workflow & Progress Tracking
+  workflowProgress: text("workflow_progress"), // JSONB tracking section completion
+  isComplete: boolean("is_complete").default(false),
+  
   status: text("status").notNull().default('active'), // 'active' | 'closed'
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
@@ -127,6 +176,7 @@ export const clinicalCases = pgTable("clinical_cases", {
 export const medicalImages = pgTable("medical_images", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clinicalCaseId: varchar("clinical_case_id").notNull().references(() => clinicalCases.id, { onDelete: "cascade" }),
+  investigationId: varchar("investigation_id").references(() => clinicalInvestigations.id, { onDelete: "cascade" }),
   fileType: text("file_type").notNull(), // 'image' | 'video' | 'document' | 'link'
   imageType: text("image_type"), // 'MRI' | 'CT' | 'X-Ray' | 'Ultrasound' | 'Photo' | 'Other'
   fileUrl: text("file_url").notNull(), // URL or external link
@@ -134,8 +184,43 @@ export const medicalImages = pgTable("medical_images", {
   fileName: text("file_name"),
   fileSize: integer("file_size"), // in bytes
   description: text("description"),
+  sectionContext: text("section_context").default('clinical_photo'), // Which APOC section this belongs to
+  orderIndex: integer("order_index").default(0), // Display order within section
+  isPrimary: boolean("is_primary").default(false), // Primary image for investigation
+  viewingNotes: text("viewing_notes"), // Radiologist/viewing notes
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+});
+
+// Clinical Investigations - Lab works and imaging
+export const clinicalInvestigations = pgTable("clinical_investigations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicalCaseId: varchar("clinical_case_id").notNull().references(() => clinicalCases.id, { onDelete: "cascade" }),
+  investigationType: text("investigation_type").notNull(), // 'lab_work' | 'imaging'
+  
+  // Investigation details
+  category: text("category"), // e.g., 'CBC', 'MRI Brain', 'CT Angiography'
+  testName: text("test_name"),
+  resultText: text("result_text"),
+  resultValue: text("result_value"),
+  resultUnit: text("result_unit"),
+  referenceRange: text("reference_range"),
+  
+  // Dates and tracking
+  resultDate: date("result_date"),
+  orderingProvider: varchar("ordering_provider").references(() => users.id),
+  reviewingProvider: varchar("reviewing_provider").references(() => users.id),
+  
+  // Status tracking
+  status: text("status").default('pending'), // 'pending' | 'completed' | 'reviewed' | 'cancelled'
+  priority: text("priority").default('routine'), // 'stat' | 'urgent' | 'routine'
+  
+  // Additional information
+  notes: text("notes"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
 // Procedures - Neurosurgical procedures
@@ -301,12 +386,33 @@ export const clinicalCasesRelations = relations(clinicalCases, ({ one, many }) =
   }),
   medicalImages: many(medicalImages),
   procedures: many(procedures),
+  investigations: many(clinicalInvestigations),
+}));
+
+export const clinicalInvestigationsRelations = relations(clinicalInvestigations, ({ one, many }) => ({
+  clinicalCase: one(clinicalCases, {
+    fields: [clinicalInvestigations.clinicalCaseId],
+    references: [clinicalCases.id],
+  }),
+  orderingProvider: one(users, {
+    fields: [clinicalInvestigations.orderingProvider],
+    references: [users.id],
+  }),
+  reviewingProvider: one(users, {
+    fields: [clinicalInvestigations.reviewingProvider],
+    references: [users.id],
+  }),
+  images: many(medicalImages),
 }));
 
 export const medicalImagesRelations = relations(medicalImages, ({ one }) => ({
   clinicalCase: one(clinicalCases, {
     fields: [medicalImages.clinicalCaseId],
     references: [clinicalCases.id],
+  }),
+  investigation: one(clinicalInvestigations, {
+    fields: [medicalImages.investigationId],
+    references: [clinicalInvestigations.id],
   }),
   uploadedByUser: one(users, {
     fields: [medicalImages.uploadedBy],
@@ -447,10 +553,21 @@ export const updateClinicalCaseSchema = insertClinicalCaseSchema.partial();
 // Medical Images
 export const insertMedicalImageSchema = createInsertSchema(medicalImages, {
   clinicalCaseId: z.string(),
-  imageType: z.enum(["MRI", "CT", "X-Ray", "Ultrasound", "Photo"]),
-  imageUrl: z.string().url(),
+  fileType: z.enum(["image", "video", "document", "link"]),
+  imageType: z.enum(["MRI", "CT", "X-Ray", "Ultrasound", "Photo", "Other"]).optional(),
+  fileUrl: z.string().url(),
   uploadedBy: z.string(),
 }).omit({ id: true, uploadedAt: true });
+
+// Clinical Investigations
+export const insertClinicalInvestigationSchema = createInsertSchema(clinicalInvestigations, {
+  clinicalCaseId: z.string(),
+  investigationType: z.enum(["lab_work", "imaging"]),
+  status: z.enum(["pending", "completed", "reviewed", "cancelled"]).optional(),
+  priority: z.enum(["stat", "urgent", "routine"]).optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const updateClinicalInvestigationSchema = insertClinicalInvestigationSchema.partial();
 
 // Procedures
 export const insertProcedureSchema = createInsertSchema(procedures, {

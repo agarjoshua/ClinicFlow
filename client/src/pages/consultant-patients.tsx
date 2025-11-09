@@ -60,6 +60,9 @@ import {
   Hospital,
   Bed,
   Activity,
+  Clock,
+  TrendingUp,
+  FileText,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, differenceInYears } from "date-fns";
@@ -71,6 +74,7 @@ export default function ConsultantPatients() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "inpatient" | "outpatient">("all");
+  const [sortBy, setSortBy] = useState<"recent" | "overdue" | "upcoming">("recent");
   
   // Patient CRUD state
   const [patientDialogOpen, setPatientDialogOpen] = useState(false);
@@ -81,6 +85,10 @@ export default function ConsultantPatients() {
   // Booking dialog state
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedPatientForBooking, setSelectedPatientForBooking] = useState<any>(null);
+  
+  // Care management dialog state
+  const [careDialogOpen, setCareDialogOpen] = useState(false);
+  const [selectedPatientForCare, setSelectedPatientForCare] = useState<any>(null);
   
   // Patient form state
   const [patientForm, setPatientForm] = useState({
@@ -126,27 +134,104 @@ export default function ConsultantPatients() {
     },
   });
 
-  // Fetch all patients
+  // Fetch all patients with care tracking data
   const { data: patients = [], isLoading } = useQuery({
-    queryKey: ["consultant-patients"],
+    queryKey: ["consultant-patients", currentUser?.id],
     queryFn: async () => {
+      if (!currentUser?.id) return [];
+      
       const { data, error } = await supabase
         .from("patients")
-        .select("*")
+        .select(`
+          *,
+          appointments(
+            id,
+            clinic_session_id,
+            status,
+            created_at,
+            clinic_sessions(session_date)
+          ),
+          clinical_cases(
+            id,
+            case_date,
+            consultant_id
+          ),
+          discharges(
+            id,
+            discharge_date,
+            follow_up_date,
+            follow_up_instructions
+          )
+        `)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data || [];
+      
+      // Process care tracking data
+      return (data || []).map((patient: any) => {
+        // Filter for this consultant's cases
+        const myCases = patient.clinical_cases?.filter((c: any) => c.consultant_id === currentUser.id) || [];
+        const myAppointments = patient.appointments?.filter((a: any) => {
+          const session = a.clinic_sessions;
+          return session && new Date(session.session_date) <= new Date();
+        }) || [];
+        
+        // Last seen date (most recent past appointment or clinical case)
+        const lastSeenDates = [
+          ...myAppointments.map((a: any) => a.clinic_sessions?.session_date),
+          ...myCases.map((c: any) => c.case_date),
+        ].filter(Boolean);
+        
+        const lastSeen = lastSeenDates.length > 0 
+          ? lastSeenDates.sort().reverse()[0]
+          : null;
+        
+        // Next scheduled appointment
+        const upcomingAppointments = patient.appointments?.filter((a: any) => {
+          const session = a.clinic_sessions;
+          return session && new Date(session.session_date) > new Date();
+        }) || [];
+        
+        const nextAppointment = upcomingAppointments.length > 0
+          ? upcomingAppointments.sort((a: any, b: any) => 
+              new Date(a.clinic_sessions.session_date).getTime() - 
+              new Date(b.clinic_sessions.session_date).getTime()
+            )[0]
+          : null;
+        
+        // Follow-up information from discharge
+        const latestDischarge = patient.discharges?.length > 0
+          ? patient.discharges.sort((a: any, b: any) => 
+              new Date(b.discharge_date).getTime() - new Date(a.discharge_date).getTime()
+            )[0]
+          : null;
+        
+        return {
+          ...patient,
+          care_tracking: {
+            last_seen: lastSeen,
+            next_appointment: nextAppointment?.clinic_sessions?.session_date,
+            follow_up_date: latestDischarge?.follow_up_date,
+            follow_up_instructions: latestDischarge?.follow_up_instructions,
+            total_visits: myAppointments.length + myCases.length,
+            days_since_last_seen: lastSeen 
+              ? Math.floor((new Date().getTime() - new Date(lastSeen).getTime()) / (1000 * 60 * 60 * 24))
+              : null,
+          }
+        };
+      });
     },
+    enabled: !!currentUser?.id,
   });
 
-  // Fetch inpatient data (patients currently admitted)
+  // Fetch inpatient data (patients currently admitted - procedures done but not discharged)
   const { data: inpatients = [] } = useQuery({
     queryKey: ["inpatients", currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) return [];
       
-      const { data, error } = await supabase
+      // First, get all procedures that are done
+      const { data: proceduresData, error: procError } = await supabase
         .from("procedures")
         .select(`
           *,
@@ -155,16 +240,37 @@ export default function ConsultantPatients() {
           clinical_case:clinical_cases(*)
         `)
         .eq("consultant_id", currentUser.id)
-        .in("status", ["done"])
-        .is("discharges.id", null)
+        .eq("status", "done")
         .order("actual_date", { ascending: false });
       
-      if (error) {
-        console.error("Error fetching inpatients:", error);
+      if (procError) {
+        console.error("Error fetching procedures:", procError);
         return [];
       }
       
-      return data || [];
+      if (!proceduresData || proceduresData.length === 0) return [];
+      
+      // Get all procedure IDs
+      const procedureIds = proceduresData.map(p => p.id);
+      
+      // Check which procedures have been discharged
+      const { data: dischargesData, error: dischError } = await supabase
+        .from("discharges")
+        .select("procedure_id")
+        .in("procedure_id", procedureIds);
+      
+      if (dischError) {
+        console.error("Error fetching discharges:", dischError);
+        return proceduresData; // Return all if error checking discharges
+      }
+      
+      // Get set of discharged procedure IDs
+      const dischargedProcedureIds = new Set(
+        (dischargesData || []).map(d => d.procedure_id)
+      );
+      
+      // Filter to only include procedures that haven't been discharged
+      return proceduresData.filter(proc => !dischargedProcedureIds.has(proc.id));
     },
     enabled: !!currentUser?.id,
   });
@@ -492,6 +598,36 @@ export default function ConsultantPatients() {
     }
 
     return matchesSearch;
+  }).sort((a: any, b: any) => {
+    // Sort based on selected criteria
+    if (sortBy === "recent") {
+      // Most recently seen first
+      const dateA = a.care_tracking?.last_seen ? new Date(a.care_tracking.last_seen).getTime() : 0;
+      const dateB = b.care_tracking?.last_seen ? new Date(b.care_tracking.last_seen).getTime() : 0;
+      return dateB - dateA;
+    } else if (sortBy === "overdue") {
+      // Patients overdue for follow-up first (past follow_up_date without next appointment)
+      const aOverdue = a.care_tracking?.follow_up_date && 
+        new Date(a.care_tracking.follow_up_date) < new Date() && 
+        !a.care_tracking.next_appointment;
+      const bOverdue = b.care_tracking?.follow_up_date && 
+        new Date(b.care_tracking.follow_up_date) < new Date() && 
+        !b.care_tracking.next_appointment;
+      
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      
+      // Then by days since last seen
+      const daysA = a.care_tracking?.days_since_last_seen || 0;
+      const daysB = b.care_tracking?.days_since_last_seen || 0;
+      return daysB - daysA;
+    } else if (sortBy === "upcoming") {
+      // Patients with upcoming appointments first
+      const dateA = a.care_tracking?.next_appointment ? new Date(a.care_tracking.next_appointment).getTime() : Number.MAX_SAFE_INTEGER;
+      const dateB = b.care_tracking?.next_appointment ? new Date(b.care_tracking.next_appointment).getTime() : Number.MAX_SAFE_INTEGER;
+      return dateA - dateB;
+    }
+    return 0;
   });
 
   const exportToCSV = () => {
@@ -563,17 +699,29 @@ export default function ConsultantPatients() {
         </TabsList>
 
         <TabsContent value={viewMode} className="space-y-4">
-          {/* Search */}
+          {/* Search and Sort */}
           <Card>
             <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or patient number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or patient number..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recent">Most Recent</SelectItem>
+                    <SelectItem value="overdue">Overdue Follow-up</SelectItem>
+                    <SelectItem value="upcoming">Upcoming Appointments</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -679,8 +827,12 @@ export default function ConsultantPatients() {
             <div className="grid gap-4">
               {filteredPatients.map((patient: any) => {
                 const isInpatient = inpatients.some((ip: any) => ip.patient?.id === patient.id);
+                const isOverdue = patient.care_tracking?.follow_up_date && 
+                  new Date(patient.care_tracking.follow_up_date) < new Date() && 
+                  !patient.care_tracking.next_appointment;
+                
                 return (
-                  <Card key={patient.id}>
+                  <Card key={patient.id} className={isOverdue ? "border-l-4 border-l-orange-500" : ""}>
                     <CardContent className="p-6">
                       <div className="flex flex-col lg:flex-row items-start gap-4">
                         <PatientAvatar
@@ -696,12 +848,20 @@ export default function ConsultantPatients() {
                               </h3>
                               <p className="text-sm text-muted-foreground">{patient.patient_number}</p>
                             </div>
-                            {isInpatient && (
-                              <Badge variant="secondary">
-                                <Bed className="w-3 h-3 mr-1" />
-                                Inpatient
-                              </Badge>
-                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {isInpatient && (
+                                <Badge variant="secondary">
+                                  <Bed className="w-3 h-3 mr-1" />
+                                  Inpatient
+                                </Badge>
+                              )}
+                              {isOverdue && (
+                                <Badge variant="destructive">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  Overdue Follow-up
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
@@ -725,6 +885,69 @@ export default function ConsultantPatients() {
                             )}
                           </div>
                           
+                          {/* Continued Care Tracking */}
+                          {patient.care_tracking && (
+                            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                                {patient.care_tracking.last_seen && (
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-blue-600" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Last Seen</p>
+                                      <p className="font-medium">
+                                        {format(new Date(patient.care_tracking.last_seen), "MMM dd, yyyy")}
+                                        <span className="text-xs text-muted-foreground ml-1">
+                                          ({patient.care_tracking.days_since_last_seen}d ago)
+                                        </span>
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {patient.care_tracking.next_appointment && (
+                                  <div className="flex items-center gap-2">
+                                    <CalendarPlus className="w-4 h-4 text-green-600" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Next Appointment</p>
+                                      <p className="font-medium">
+                                        {format(new Date(patient.care_tracking.next_appointment), "MMM dd, yyyy")}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {patient.care_tracking.total_visits > 0 && (
+                                  <div className="flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-purple-600" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Total Visits</p>
+                                      <p className="font-medium">{patient.care_tracking.total_visits}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {patient.care_tracking.follow_up_date && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                  <div className="flex items-start gap-2">
+                                    <Calendar className="w-4 h-4 text-orange-600 mt-0.5" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Recommended Follow-up</p>
+                                      <p className="font-medium text-orange-700">
+                                        {format(new Date(patient.care_tracking.follow_up_date), "MMMM dd, yyyy")}
+                                      </p>
+                                      {patient.care_tracking.follow_up_instructions && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {patient.care_tracking.follow_up_instructions}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
                           <div className="flex flex-wrap gap-2">
                             <Button
                               variant="outline"
@@ -733,6 +956,17 @@ export default function ConsultantPatients() {
                             >
                               <Eye className="w-4 h-4 mr-2" />
                               View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPatientForCare(patient);
+                                setCareDialogOpen(true);
+                              }}
+                            >
+                              <FileText className="w-4 h-4 mr-2" />
+                              Care History
                             </Button>
                             <Button
                               variant="outline"
@@ -1100,6 +1334,202 @@ export default function ConsultantPatients() {
               disabled={bookAppointmentMutation.isPending}
             >
               {bookAppointmentMutation.isPending ? "Booking..." : "Book Appointment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Care History Dialog */}
+      <Dialog open={careDialogOpen} onOpenChange={setCareDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Care History & Management</DialogTitle>
+            <DialogDescription>
+              Continued care tracking for {selectedPatientForCare?.first_name} {selectedPatientForCare?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedPatientForCare && (
+            <div className="space-y-6">
+              {/* Care Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Care Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {selectedPatientForCare.care_tracking?.total_visits > 0 && (
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className="w-5 h-5 text-purple-600" />
+                          <p className="text-sm font-medium text-purple-900">Total Visits</p>
+                        </div>
+                        <p className="text-2xl font-bold text-purple-700">
+                          {selectedPatientForCare.care_tracking.total_visits}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {selectedPatientForCare.care_tracking?.last_seen && (
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                          <p className="text-sm font-medium text-blue-900">Last Seen</p>
+                        </div>
+                        <p className="text-sm font-semibold text-blue-700">
+                          {format(new Date(selectedPatientForCare.care_tracking.last_seen), "MMM dd, yyyy")}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {selectedPatientForCare.care_tracking.days_since_last_seen} days ago
+                        </p>
+                      </div>
+                    )}
+                    
+                    {selectedPatientForCare.care_tracking?.next_appointment && (
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CalendarPlus className="w-5 h-5 text-green-600" />
+                          <p className="text-sm font-medium text-green-900">Next Appointment</p>
+                        </div>
+                        <p className="text-sm font-semibold text-green-700">
+                          {format(new Date(selectedPatientForCare.care_tracking.next_appointment), "MMM dd, yyyy")}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Follow-up Recommendations */}
+                  {selectedPatientForCare.care_tracking?.follow_up_date && (
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-orange-600 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-orange-900 mb-1">Recommended Follow-up</p>
+                          <p className="text-sm text-orange-700">
+                            {format(new Date(selectedPatientForCare.care_tracking.follow_up_date), "MMMM dd, yyyy")}
+                          </p>
+                          {selectedPatientForCare.care_tracking.follow_up_instructions && (
+                            <p className="text-sm text-orange-600 mt-2">
+                              {selectedPatientForCare.care_tracking.follow_up_instructions}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Appointment History */}
+              {selectedPatientForCare.appointments && selectedPatientForCare.appointments.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Appointment History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {selectedPatientForCare.appointments
+                        .sort((a: any, b: any) => {
+                          const dateA = new Date(a.clinic_sessions?.session_date || a.created_at);
+                          const dateB = new Date(b.clinic_sessions?.session_date || b.created_at);
+                          return dateB.getTime() - dateA.getTime();
+                        })
+                        .slice(0, 5)
+                        .map((appointment: any) => (
+                          <div key={appointment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {appointment.clinic_sessions?.session_date 
+                                    ? format(new Date(appointment.clinic_sessions.session_date), "MMM dd, yyyy")
+                                    : "Date TBD"}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {appointment.chief_complaint || "No complaint recorded"}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant={appointment.status === "seen" ? "default" : "secondary"}>
+                              {appointment.status}
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Clinical Cases History */}
+              {selectedPatientForCare.clinical_cases && selectedPatientForCare.clinical_cases.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Clinical Cases</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {selectedPatientForCare.clinical_cases
+                        .filter((c: any) => c.consultant_id === currentUser?.id)
+                        .sort((a: any, b: any) => {
+                          const dateA = new Date(a.case_date);
+                          const dateB = new Date(b.case_date);
+                          return dateB.getTime() - dateA.getTime();
+                        })
+                        .slice(0, 5)
+                        .map((clinicalCase: any) => (
+                          <div key={clinicalCase.id} className="p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <FileText className="w-4 h-4 text-muted-foreground mt-0.5" />
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-sm font-medium">
+                                    {format(new Date(clinicalCase.case_date), "MMM dd, yyyy")}
+                                  </p>
+                                  <Badge variant="outline">{clinicalCase.status}</Badge>
+                                </div>
+                                {clinicalCase.diagnosis && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {clinicalCase.diagnosis}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Quick Actions */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    setCareDialogOpen(false);
+                    handleOpenBooking(selectedPatientForCare);
+                  }}
+                >
+                  <CalendarPlus className="w-4 h-4 mr-2" />
+                  Schedule Follow-up
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setCareDialogOpen(false);
+                    setLocation(`/patients/${selectedPatientForCare.id}`);
+                  }}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Full Details
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCareDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

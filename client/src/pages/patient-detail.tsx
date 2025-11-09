@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PatientAvatarWithInitials } from "@/components/patient-avatar";
 import { Separator } from "@/components/ui/separator";
+import APOCDocumentationWizard from "@/components/APOCDocumentationWizard";
 import {
   Select,
   SelectContent,
@@ -94,6 +95,9 @@ export default function PatientDetail() {
   
   // Clinical case creation state
   const [createCaseDialogOpen, setCreateCaseDialogOpen] = useState(false);
+  const [documentationMode, setDocumentationMode] = useState<'legacy' | 'apoc'>('legacy');
+  const [selectedCaseForAPOC, setSelectedCaseForAPOC] = useState<any>(null);
+  const [apocWizardOpen, setApocWizardOpen] = useState(false);
   const [caseSymptoms, setCaseSymptoms] = useState("");
   const [caseDiagnosisNotes, setCaseDiagnosisNotes] = useState("");
   const [caseNeurologicalExam, setCaseNeurologicalExam] = useState("");
@@ -429,11 +433,31 @@ export default function PatientDetail() {
 
       if (!userData) throw new Error("User record not found");
 
+      // For APOC mode, create minimal case
+      if (documentationMode === 'apoc') {
+        const { data, error } = await supabase
+          .from("clinical_cases")
+          .insert({
+            patient_id: patientId,
+            consultant_id: userData.id,
+            documentation_mode: 'apoc',
+            case_date: new Date().toISOString().split('T')[0],
+            status: "active",
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
+      // Legacy mode - full data entry
       const { data, error } = await supabase
         .from("clinical_cases")
         .insert({
           patient_id: patientId,
           consultant_id: userData.id,
+          documentation_mode: 'legacy',
           symptoms: caseSymptoms,
           diagnosis_notes: caseDiagnosisNotes,
           neurological_exam: caseNeurologicalExam,
@@ -448,7 +472,7 @@ export default function PatientDetail() {
 
       if (error) throw error;
       
-      // Upload media files if any
+      // Upload media files if any (legacy mode only)
       if (caseMediaItems && caseMediaItems.length > 0) {
         for (const media of caseMediaItems) {
           let fileUrl = media.link;
@@ -488,13 +512,25 @@ export default function PatientDetail() {
       
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
-      toast({
-        title: "Success",
-        description: "Clinical case created successfully with media",
-      });
-      handleCloseCreateCaseDialog();
+      
+      if (documentationMode === 'apoc') {
+        // Close create dialog and open APOC wizard
+        setCreateCaseDialogOpen(false);
+        setSelectedCaseForAPOC(data);
+        setApocWizardOpen(true);
+        toast({
+          title: "Clinical case created",
+          description: "Opening APOC documentation wizard...",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Clinical case created successfully with media",
+        });
+        handleCloseCreateCaseDialog();
+      }
     },
     onError: (error: any) => {
       toast({
@@ -1089,38 +1125,134 @@ export default function PatientDetail() {
         </CardContent>
       </Card>
 
-      {/* Clinical Cases (Diagnoses) - Redesigned */}
+      {/* APOC Documentation System - Primary Entry Point */}
+      <Card className="border-2 border-indigo-200">
+        <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <FileText className="w-6 h-6" />
+                APOC Patient Documentation
+              </CardTitle>
+              <p className="text-indigo-100 text-sm mt-1">
+                Comprehensive structured clinical documentation system
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={() => {
+                  setDocumentationMode('apoc');
+                  setCreateCaseDialogOpen(true);
+                }}
+                className="bg-white text-indigo-700 hover:bg-indigo-50 w-full sm:w-auto shadow-lg"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New APOC Documentation
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            {/* APOC Cases */}
+            {clinicalCases.filter(c => c.documentation_mode === 'apoc').length === 0 ? (
+              <div className="text-center py-8 bg-indigo-50 rounded-lg border-2 border-dashed border-indigo-200">
+                <FileText className="w-12 h-12 text-indigo-300 mx-auto mb-3" />
+                <p className="text-indigo-700 font-medium">No APOC documentation yet</p>
+                <p className="text-indigo-600 text-sm mt-2">
+                  Click "New APOC Documentation" to start comprehensive patient assessment
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {clinicalCases
+                  .filter(c => c.documentation_mode === 'apoc')
+                  .map((clinicalCase: any) => (
+                    <div key={clinicalCase.id} className="border-l-4 border-indigo-500 bg-gradient-to-r from-indigo-50 to-white rounded-r-lg shadow-sm hover:shadow-md transition-all p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <Calendar className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                            <span className="text-sm font-medium text-gray-600">
+                              {new Date(clinicalCase.case_date).toLocaleDateString()}
+                            </span>
+                            <Badge variant="outline" className="bg-indigo-100 text-indigo-700 border-indigo-300">
+                              APOC Mode
+                            </Badge>
+                            {clinicalCase.is_complete && (
+                              <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                                ✓ Finalized
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-base text-gray-800 font-medium truncate">
+                            {clinicalCase.chief_complaint || "Assessment in progress..."}
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                            {clinicalCase.diagnosis_impression || clinicalCase.diagnosis_notes || "Diagnosis pending completion"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 sm:flex-shrink-0">
+                          <Button
+                            onClick={() => {
+                              setSelectedCaseForAPOC(clinicalCase);
+                              setApocWizardOpen(true);
+                            }}
+                            variant="outline"
+                            className="border-indigo-600 text-indigo-700 hover:bg-indigo-50 flex-1 sm:flex-none"
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            <span className="hidden sm:inline">{clinicalCase.is_complete ? 'View/Edit' : 'Continue Documentation'}</span>
+                            <span className="sm:hidden">{clinicalCase.is_complete ? 'View' : 'Continue'}</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Clinical Cases & Medical Records - Legacy Quick Entry */}
       <Card>
-        <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-slate-50">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-indigo-900">
+              <CardTitle className="flex items-center gap-2 text-gray-900">
                 <Brain className="w-6 h-6" />
-                Clinical Cases & Medical Records
+                Quick Entry Clinical Cases
               </CardTitle>
-              <p className="text-sm text-indigo-700 mt-1">
-                {clinicalCases.length} {clinicalCases.length === 1 ? 'case' : 'cases'} recorded
+              <p className="text-sm text-gray-600 mt-1">
+                {clinicalCases.filter(c => c.documentation_mode !== 'apoc').length} quick entry {clinicalCases.filter(c => c.documentation_mode !== 'apoc').length === 1 ? 'case' : 'cases'}
               </p>
             </div>
             <Button
-              onClick={handleOpenCreateCaseDialog}
-              className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
+              onClick={() => {
+                setDocumentationMode('legacy');
+                setCreateCaseDialogOpen(true);
+              }}
+              variant="outline"
+              className="w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Clinical Case
+              Quick Entry Case
             </Button>
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {clinicalCases.length === 0 ? (
-            <div className="text-center py-12">
-              <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 font-medium">No clinical cases recorded yet</p>
-              <p className="text-gray-400 text-sm mt-2">Click "Add Clinical Case" to create your first diagnosis</p>
+          {clinicalCases.filter(c => c.documentation_mode !== 'apoc').length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <Brain className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No quick entry cases</p>
+              <p className="text-gray-400 text-sm mt-2">Use "Quick Entry Case" for simple documentation or "New APOC Documentation" for comprehensive assessments</p>
             </div>
           ) : (
             <div className="space-y-6">
-              {clinicalCases.map((clinicalCase: any, index: number) => (
+              {clinicalCases
+                .filter(c => c.documentation_mode !== 'apoc')
+                .map((clinicalCase: any, index: number) => (
                 <div key={clinicalCase.id} className="border-l-4 border-indigo-500 bg-white rounded-r-lg shadow-sm hover:shadow-md transition-shadow">
                   {/* Case Header with Media Preview */}
                   <div className="p-5">
@@ -1249,7 +1381,7 @@ export default function PatientDetail() {
                           size="sm"
                           variant="outline"
                           onClick={() => handleAddMedia(clinicalCase)}
-                          className="flex items-center gap-1 w-full sm:w-auto"
+                          className="flex items-center gap-1"
                         >
                           <Plus className="w-4 h-4" />
                           Add Media
@@ -1326,10 +1458,20 @@ export default function PatientDetail() {
       {/* Appointment History */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Appointment History
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Appointment History
+            </CardTitle>
+            <Button
+              onClick={() => setLocation(`/appointments/new?patientId=${patientId}`)}
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Book Appointment
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {appointments.length === 0 ? (
@@ -1487,25 +1629,41 @@ export default function PatientDetail() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Brain className="w-5 h-5" />
-              Create Clinical Case
+              {documentationMode === 'apoc' ? (
+                <>
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                  Create APOC Documentation
+                </>
+              ) : (
+                <>
+                  <Brain className="w-5 h-5" />
+                  Quick Entry Clinical Case
+                </>
+              )}
             </DialogTitle>
             <DialogDescription>
               Patient: {patient?.firstName} {patient?.lastName} (#{patient?.patientNumber})
+              {documentationMode === 'apoc' && (
+                <span className="block mt-1 text-indigo-600 font-medium">
+                  Comprehensive 12-section structured documentation
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="case-symptoms">Symptoms</Label>
-              <Textarea
-                id="case-symptoms"
-                placeholder="Document presenting symptoms..."
-                value={caseSymptoms}
-                onChange={(e) => setCaseSymptoms(e.target.value)}
-                rows={3}
-              />
-            </div>
+            {documentationMode === 'legacy' ? (
+              <>
+                <div>
+                  <Label htmlFor="case-symptoms">Symptoms</Label>
+                  <Textarea
+                    id="case-symptoms"
+                    placeholder="Document presenting symptoms..."
+                    value={caseSymptoms}
+                    onChange={(e) => setCaseSymptoms(e.target.value)}
+                    rows={3}
+                  />
+                </div>
 
             <div>
               <Label htmlFor="case-neuro-exam">Neurological Examination</Label>
@@ -1680,6 +1838,24 @@ export default function PatientDetail() {
                 )}
               </CardContent>
             </Card>
+              </>
+            ) : (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6 text-center">
+                <FileText className="w-12 h-12 text-indigo-600 mx-auto mb-3" />
+                <h3 className="font-semibold text-indigo-900 mb-2">APOC Structured Documentation</h3>
+                <p className="text-sm text-indigo-700 mb-4">
+                  The case will be created and you'll be guided through a comprehensive 12-section documentation workflow.
+                </p>
+                <ul className="text-xs text-left text-indigo-600 space-y-1 max-w-md mx-auto">
+                  <li>✓ Chief Complaint & History of Presenting Illness</li>
+                  <li>✓ Review of Systems & Medical History</li>
+                  <li>✓ Vital Signs & Physical Examination</li>
+                  <li>✓ Diagnosis, Investigations & Treatment Plan</li>
+                  <li>✓ Auto-save every 30 seconds</li>
+                  <li>✓ Progress tracking & section completion</li>
+                </ul>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -1690,11 +1866,37 @@ export default function PatientDetail() {
               onClick={() => createCaseMutation.mutate()}
               disabled={createCaseMutation.isPending}
             >
-              {createCaseMutation.isPending ? "Creating..." : "Create Clinical Case"}
+              {createCaseMutation.isPending ? "Creating..." : documentationMode === 'apoc' ? "Create & Open APOC" : "Create Clinical Case"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* APOC Documentation Wizard Dialog */}
+      {apocWizardOpen && selectedCaseForAPOC && patient && (
+        <Dialog open={apocWizardOpen} onOpenChange={setApocWizardOpen}>
+          <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0">
+            <APOCDocumentationWizard
+              clinicalCaseId={selectedCaseForAPOC.id}
+              patientId={patientId!}
+              patient={{
+                firstName: patient.firstName,
+                lastName: patient.lastName,
+                gender: patient.gender,
+                age: patient.age,
+              }}
+              onComplete={() => {
+                setApocWizardOpen(false);
+                queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+              }}
+              onCancel={() => {
+                setApocWizardOpen(false);
+                queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
