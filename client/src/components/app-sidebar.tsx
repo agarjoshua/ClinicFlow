@@ -1,4 +1,4 @@
-import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital } from "lucide-react";
+import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -26,6 +26,11 @@ const consultantMenuItems = [
     title: "Patients",
     url: "/consultant-patients",
     icon: Users,
+  },
+  {
+    title: "Inpatients",
+    url: "/inpatients",
+    icon: BedDouble,
   },
   {
     title: "Clinical Cases",
@@ -75,6 +80,11 @@ const assistantMenuItems = [
     title: "Patients",
     url: "/patients",
     icon: Users,
+  },
+  {
+    title: "Inpatients",
+    url: "/inpatients",
+    icon: BedDouble,
   },
   {
     title: "Post-Op Updates",

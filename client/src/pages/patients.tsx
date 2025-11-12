@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
 import { useEffect } from "react";
-import { Search, UserPlus, Download, Eye, Trash2, Users } from "lucide-react";
+import { Search, UserPlus, Download, Eye, Trash2, Users, MapPin, Clock, BedDouble } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+type PatientListItem = Patient & {
+  currentHospital?: {
+    id: string;
+    name: string;
+    color: string | null;
+  } | null;
+};
 
 export default function Patients() {
   const [, setLocation] = useLocation();
@@ -38,17 +46,26 @@ export default function Patients() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: patients = [], isLoading } = useQuery<Patient[]>({
+  const { data: patients = [], isLoading } = useQuery<PatientListItem[]>({
     queryKey: ["patients"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
-        .select()
+        .select(`
+          *,
+          currentHospital:hospitals(id, name, color)
+        `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       
       // Transform snake_case to camelCase
-      return (data ?? []).map((p: any) => ({
+      return (data ?? []).map((p: any) => {
+        const currentHospitalRaw = p.currentHospital;
+        const currentHospital = Array.isArray(currentHospitalRaw)
+          ? currentHospitalRaw[0] || null
+          : currentHospitalRaw || null;
+
+        return {
         id: p.id,
         patientNumber: p.patient_number,
         firstName: p.first_name,
@@ -65,9 +82,15 @@ export default function Patients() {
         allergies: p.allergies,
         currentMedications: p.current_medications,
         bloodType: p.blood_type,
+        isInpatient: p.is_inpatient,
+        currentHospitalId: p.current_hospital_id,
+        inpatientAdmittedAt: p.inpatient_admitted_at,
+        inpatientNotes: p.inpatient_notes,
+        currentHospital,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
-      }));
+      } as PatientListItem;
+      });
     },
   });
 
@@ -240,6 +263,28 @@ export default function Patients() {
                         <Eye className="w-4 h-4" />
                       </Button>
                     </div>
+                    {patient.isInpatient && (
+                      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <Badge className="bg-emerald-100 text-emerald-700 border-transparent flex items-center gap-1">
+                            <BedDouble className="h-3.5 w-3.5" />
+                            Inpatient
+                          </Badge>
+                          {patient.currentHospital && (
+                            <span className="flex items-center gap-1 text-emerald-700">
+                              <MapPin className="h-4 w-4" />
+                              {patient.currentHospital.name}
+                            </span>
+                          )}
+                          {patient.inpatientAdmittedAt && (
+                            <span className="flex items-center gap-1 text-emerald-700">
+                              <Clock className="h-4 w-4" />
+                              Since {format(new Date(patient.inpatientAdmittedAt), "MMM dd, yyyy h:mm a")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

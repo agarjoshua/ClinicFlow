@@ -26,6 +26,7 @@ import Hospitals from "@/pages/hospitals";
 import PostOpUpdates from "@/pages/post-op-updates";
 import ScheduleClinic from "@/pages/schedule-clinic";
 import ClinicSessionDetail from "@/pages/clinic-session-detail";
+import Inpatients from "@/pages/inpatients";
 import NotFound from "@/pages/not-found";
 
 function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
@@ -47,6 +48,7 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
       <Route path="/patients/:id" component={PatientDetail} />
       <Route path="/post-op-updates" component={PostOpUpdates} />
       <Route path="/discharged" component={Discharged} />
+  <Route path="/inpatients" component={Inpatients} />
       <Route path="/clinical-cases" component={ClinicalCases} />
       <Route path="/procedures" component={Procedures} />
       <Route path="/hospitals" component={Hospitals} />
