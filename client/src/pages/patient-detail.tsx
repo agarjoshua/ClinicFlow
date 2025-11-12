@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { 
   ArrowLeft, 
   User, 
@@ -68,11 +70,26 @@ import {
   Brain,
   Plus,
   Upload,
+  Hospital,
 } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import { format, differenceInYears } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+
+type AdmissionFormState = {
+  hospitalId: string;
+  admissionDate: string;
+  admissionReason: string;
+  diagnosisSummary: string;
+  notes: string;
+};
+
+type DischargeFormState = {
+  dischargeDate: string;
+  dischargeSummary: string;
+  notes: string;
+};
 
 export default function PatientDetail() {
   const [, setLocation] = useLocation();
@@ -109,6 +126,20 @@ export default function PatientDetail() {
   const [caseMediaLink, setCaseMediaLink] = useState("");
   const [caseMediaDescription, setCaseMediaDescription] = useState("");
   const [caseMediaFile, setCaseMediaFile] = useState<File | null>(null);
+  const [admitDialogOpen, setAdmitDialogOpen] = useState(false);
+  const [dischargeDialogOpen, setDischargeDialogOpen] = useState(false);
+  const [admissionForm, setAdmissionForm] = useState<AdmissionFormState>({
+    hospitalId: "",
+    admissionDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    admissionReason: "",
+    diagnosisSummary: "",
+    notes: "",
+  });
+  const [dischargeForm, setDischargeForm] = useState<DischargeFormState>({
+    dischargeDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    dischargeSummary: "",
+    notes: "",
+  });
 
   // Smart back navigation
   const handleBack = () => {
@@ -154,6 +185,10 @@ export default function PatientDetail() {
           allergies: data.allergies,
           currentMedications: data.current_medications,
           bloodType: data.blood_type,
+          isInpatient: data.is_inpatient,
+          currentHospitalId: data.current_hospital_id,
+          inpatientAdmittedAt: data.inpatient_admitted_at,
+          inpatientNotes: data.inpatient_notes,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
         };
@@ -225,6 +260,78 @@ export default function PatientDetail() {
     enabled: !!patientId,
   });
 
+  const { data: hospitals = [], isLoading: hospitalsLoading } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hospitals")
+        .select("id, name, color")
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: admissions = [], isLoading: admissionsLoading } = useQuery({
+    queryKey: ["patient-admissions", patientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patient_admissions")
+        .select(`
+          *,
+          hospital:hospitals (id, name, color)
+        `)
+        .eq("patient_id", patientId)
+        .order("admission_date", { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map((admission: any) => ({
+        id: admission.id,
+        hospitalId: admission.hospital_id,
+        hospital: admission.hospital,
+        admissionDate: admission.admission_date,
+        dischargeDate: admission.discharge_date,
+        status: admission.status,
+        admissionReason: admission.admission_reason,
+        diagnosisSummary: admission.diagnosis_summary,
+        dischargeSummary: admission.discharge_summary,
+      }));
+    },
+    enabled: !!patientId,
+  });
+
+  const activeAdmission = admissions.find((admission: any) => admission.status === "admitted");
+
+  useEffect(() => {
+    if (!admitDialogOpen) return;
+
+    setAdmissionForm({
+      hospitalId: patient?.currentHospitalId ?? "",
+      admissionDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      admissionReason: "",
+      diagnosisSummary:
+        (clinicalCases?.[0]?.diagnosis as string | undefined) ||
+        (clinicalCases?.[0]?.diagnosis_impression as string | undefined) ||
+        "",
+      notes: patient?.inpatientNotes ?? "",
+    });
+  }, [admitDialogOpen, patient, clinicalCases]);
+
+  useEffect(() => {
+    if (!dischargeDialogOpen) return;
+
+    setDischargeForm({
+      dischargeDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      dischargeSummary: activeAdmission?.dischargeSummary ?? "",
+      notes: patient?.inpatientNotes ?? "",
+    });
+  }, [dischargeDialogOpen, activeAdmission, patient]);
+
+  const isInpatient = Boolean(patient?.isInpatient);
+  const currentHospital = hospitals.find((hospital: any) => hospital.id === patient?.currentHospitalId);
+
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (updatedData: any) => {
@@ -289,6 +396,143 @@ export default function PatientDetail() {
       toast({
         title: "Error",
         description: error.message || "Failed to delete patient",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const admitMutation = useMutation({
+    mutationFn: async (payload: AdmissionFormState) => {
+      if (!patientId) throw new Error("Missing patient id");
+      if (!payload.hospitalId) throw new Error("Select a hospital before admitting");
+
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth.user;
+      if (!user) throw new Error("You must be signed in to admit a patient");
+
+      const { data: userRecord, error: userLookupError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (userLookupError) throw userLookupError;
+      if (!userRecord) throw new Error("Unable to resolve current user record");
+
+  if (!payload.admissionDate) throw new Error("Provide an admission date");
+
+  const admissionDateObj = new Date(payload.admissionDate);
+  if (Number.isNaN(admissionDateObj.getTime())) throw new Error("Invalid admission date");
+
+  const admissionDateIso = admissionDateObj.toISOString();
+
+      const { error: admissionError } = await supabase
+        .from("patient_admissions")
+        .insert({
+          patient_id: patientId,
+          hospital_id: payload.hospitalId,
+          consultant_id: userRecord.id,
+          admission_reason: payload.admissionReason,
+          diagnosis_summary: payload.diagnosisSummary,
+          admission_date: admissionDateIso,
+          status: "admitted",
+          created_by: userRecord.id,
+        });
+
+      if (admissionError) throw admissionError;
+
+      const { error: patientUpdateError } = await supabase
+        .from("patients")
+        .update({
+          is_inpatient: true,
+          current_hospital_id: payload.hospitalId,
+          inpatient_admitted_at: admissionDateIso,
+          inpatient_notes: payload.notes,
+        })
+        .eq("id", patientId);
+
+      if (patientUpdateError) throw patientUpdateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-admissions", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      setAdmitDialogOpen(false);
+      setAdmissionForm({
+        hospitalId: "",
+        admissionDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        admissionReason: "",
+        diagnosisSummary: "",
+        notes: "",
+      });
+      toast({
+        title: "Patient admitted",
+        description: "Inpatient status updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Admission failed",
+        description: error.message || "Unable to admit patient",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const dischargeMutation = useMutation({
+    mutationFn: async (payload: DischargeFormState) => {
+      if (!patientId) throw new Error("Missing patient id");
+      if (!activeAdmission) throw new Error("No active admission found for this patient");
+
+  if (!payload.dischargeDate) throw new Error("Provide a discharge date");
+
+  const dischargeDateObj = new Date(payload.dischargeDate);
+  if (Number.isNaN(dischargeDateObj.getTime())) throw new Error("Invalid discharge date");
+
+  const dischargeDateIso = dischargeDateObj.toISOString();
+
+      const { error: admissionUpdateError } = await supabase
+        .from("patient_admissions")
+        .update({
+          status: "discharged",
+          discharge_date: dischargeDateIso,
+          discharge_summary: payload.dischargeSummary,
+        })
+        .eq("id", activeAdmission.id);
+
+      if (admissionUpdateError) throw admissionUpdateError;
+
+      const { error: patientUpdateError } = await supabase
+        .from("patients")
+        .update({
+          is_inpatient: false,
+          current_hospital_id: null,
+          inpatient_admitted_at: null,
+          inpatient_notes: payload.notes,
+        })
+        .eq("id", patientId);
+
+      if (patientUpdateError) throw patientUpdateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-admissions", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      setDischargeDialogOpen(false);
+      setDischargeForm({
+        dischargeDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        dischargeSummary: "",
+        notes: "",
+      });
+      toast({
+        title: "Patient discharged",
+        description: "The patient has been marked as discharged.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Discharge failed",
+        description: error.message || "Unable to discharge patient",
         variant: "destructive",
       });
     },
@@ -740,6 +984,41 @@ export default function PatientDetail() {
     }
   };
 
+  const formatDateTime = (date: string | null | undefined) => {
+    if (!date) return "N/A";
+    try {
+      return format(new Date(date), "MMM dd, yyyy p");
+    } catch (e) {
+      console.error("Error formatting date time:", date, e);
+      return "Invalid Date";
+    }
+  };
+
+  const updateAdmissionForm = (field: keyof AdmissionFormState, value: string) => {
+    setAdmissionForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateDischargeForm = (field: keyof DischargeFormState, value: string) => {
+    setDischargeForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleInpatientToggle = (nextValue: boolean) => {
+    if (nextValue === isInpatient) return;
+
+    if (nextValue) {
+      setAdmitDialogOpen(true);
+    } else {
+      if (!activeAdmission) {
+        toast({
+          title: "No active admission",
+          description: "This patient does not have an active admission to discharge.",
+        });
+        return;
+      }
+      setDischargeDialogOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -950,6 +1229,156 @@ export default function PatientDetail() {
           </div>
         </CardContent>
       </Card>
+
+        {/* Inpatient Management */}
+        <Card>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Hospital className="w-5 h-5" />
+              Inpatient Management
+            </CardTitle>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="inpatient-status-toggle"
+                checked={isInpatient}
+                onCheckedChange={handleInpatientToggle}
+                disabled={admitMutation.isPending || dischargeMutation.isPending || admissionsLoading}
+              />
+              <Label htmlFor="inpatient-status-toggle" className="text-sm text-muted-foreground">
+                {isInpatient ? "Currently admitted" : "Outpatient"}
+              </Label>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <Badge className={isInpatient ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"}>
+                  {isInpatient ? "Inpatient" : "Outpatient"}
+                </Badge>
+                {currentHospital && (
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    {currentHospital.name}
+                  </span>
+                )}
+                {patient?.inpatientAdmittedAt && (
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Since {formatDateTime(patient.inpatientAdmittedAt)}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 justify-start lg:justify-end">
+                {!isInpatient ? (
+                  <Button
+                    onClick={() => setAdmitDialogOpen(true)}
+                    disabled={admitMutation.isPending}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Admit Patient
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setDischargeDialogOpen(true)}
+                    disabled={dischargeMutation.isPending || !activeAdmission}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Discharge Patient
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {isInpatient ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Active admission</AlertTitle>
+                <AlertDescription className="space-y-1 text-sm">
+                  {activeAdmission?.admissionReason && (
+                    <p><span className="font-medium">Reason:</span> {activeAdmission.admissionReason}</p>
+                  )}
+                  {activeAdmission?.diagnosisSummary && (
+                    <p><span className="font-medium">Diagnosis:</span> {activeAdmission.diagnosisSummary}</p>
+                  )}
+                  {patient?.inpatientNotes && (
+                    <p><span className="font-medium">Notes:</span> {patient.inpatientNotes}</p>
+                  )}
+                  {!activeAdmission && (
+                    <p>No admission record linked. Update admission history to keep details in sync.</p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>No active admission</AlertTitle>
+                <AlertDescription className="text-sm">
+                  Use “Admit Patient” when the patient is admitted to a hospital ward.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Admission History
+                </h3>
+              </div>
+              {admissionsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading admissions...</p>
+              ) : admissions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No admissions recorded yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {admissions.map((admission: any) => {
+                    const statusClass =
+                      admission.status === "admitted"
+                        ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                        : admission.status === "discharged"
+                          ? "bg-blue-100 text-blue-700 border-blue-200"
+                          : "bg-amber-100 text-amber-700 border-amber-200";
+
+                    return (
+                      <div key={admission.id} className="border border-slate-200 rounded-lg p-4 bg-white shadow-sm">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-slate-800">
+                              {admission.hospital?.name || "Unknown Hospital"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Admitted {formatDateTime(admission.admissionDate)}
+                            </p>
+                            {admission.dischargeDate && (
+                              <p className="text-xs text-muted-foreground">
+                                Discharged {formatDateTime(admission.dischargeDate)}
+                              </p>
+                            )}
+                          </div>
+                          <Badge className={statusClass}>
+                            {admission.status.charAt(0).toUpperCase() + admission.status.slice(1)}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 space-y-1 text-sm text-slate-600">
+                          {admission.admissionReason && (
+                            <p><span className="font-medium">Reason:</span> {admission.admissionReason}</p>
+                          )}
+                          {admission.diagnosisSummary && (
+                            <p><span className="font-medium">Diagnosis:</span> {admission.diagnosisSummary}</p>
+                          )}
+                          {admission.dischargeSummary && (
+                            <p><span className="font-medium">Discharge summary:</span> {admission.dischargeSummary}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Contact Information */}
@@ -1520,6 +1949,179 @@ export default function PatientDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Admit Patient Dialog */}
+      <Dialog open={admitDialogOpen} onOpenChange={setAdmitDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Hospital className="w-5 h-5" />
+              Admit Patient
+            </DialogTitle>
+            <DialogDescription>
+              Record the admission details for {patient.firstName} {patient.lastName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="admission-hospital">Hospital</Label>
+              <Select
+                value={admissionForm.hospitalId}
+                onValueChange={(value) => updateAdmissionForm("hospitalId", value)}
+                disabled={hospitalsLoading}
+              >
+                <SelectTrigger id="admission-hospital" className="mt-2">
+                  <SelectValue placeholder="Select hospital" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hospitalsLoading ? (
+                    <SelectItem value="loading" disabled>
+                      Loading hospitals...
+                    </SelectItem>
+                  ) : hospitals.length === 0 ? (
+                    <SelectItem value="empty" disabled>
+                      No hospitals available
+                    </SelectItem>
+                  ) : (
+                    hospitals.map((hospital: any) => (
+                      <SelectItem key={hospital.id} value={hospital.id}>
+                        {hospital.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="admission-date">Admission Date &amp; Time</Label>
+                <Input
+                  id="admission-date"
+                  type="datetime-local"
+                  className="mt-2"
+                  value={admissionForm.admissionDate}
+                  onChange={(e) => updateAdmissionForm("admissionDate", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="admission-reason">Reason for Admission</Label>
+              <Textarea
+                id="admission-reason"
+                className="mt-2"
+                rows={3}
+                placeholder="Briefly describe why the patient is being admitted."
+                value={admissionForm.admissionReason}
+                onChange={(e) => updateAdmissionForm("admissionReason", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="admission-diagnosis">Diagnosis Summary</Label>
+              <Textarea
+                id="admission-diagnosis"
+                className="mt-2"
+                rows={3}
+                placeholder="Provide a concise diagnosis or working impression."
+                value={admissionForm.diagnosisSummary}
+                onChange={(e) => updateAdmissionForm("diagnosisSummary", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="admission-notes">Inpatient Notes</Label>
+              <Textarea
+                id="admission-notes"
+                className="mt-2"
+                rows={3}
+                placeholder="Optional notes for ward staff or follow-up."
+                value={admissionForm.notes}
+                onChange={(e) => updateAdmissionForm("notes", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdmitDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => admitMutation.mutate(admissionForm)}
+              disabled={admitMutation.isPending || !admissionForm.hospitalId || hospitalsLoading}
+            >
+              {admitMutation.isPending ? "Admitting..." : "Confirm Admission"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discharge Patient Dialog */}
+      <Dialog open={dischargeDialogOpen} onOpenChange={setDischargeDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              Discharge Patient
+            </DialogTitle>
+            <DialogDescription>
+              Finalize the admission and discharge {patient.firstName} {patient.lastName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="discharge-date">Discharge Date &amp; Time</Label>
+              <Input
+                id="discharge-date"
+                type="datetime-local"
+                className="mt-2"
+                value={dischargeForm.dischargeDate}
+                onChange={(e) => updateDischargeForm("dischargeDate", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="discharge-summary">Discharge Summary</Label>
+              <Textarea
+                id="discharge-summary"
+                className="mt-2"
+                rows={3}
+                placeholder="Summarize the inpatient stay and discharge plan."
+                value={dischargeForm.dischargeSummary}
+                onChange={(e) => updateDischargeForm("dischargeSummary", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="discharge-notes">Notes</Label>
+              <Textarea
+                id="discharge-notes"
+                className="mt-2"
+                rows={3}
+                placeholder="Optional notes or follow-up instructions to keep on the patient record."
+                value={dischargeForm.notes}
+                onChange={(e) => updateDischargeForm("notes", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDischargeDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => dischargeMutation.mutate(dischargeForm)}
+              disabled={dischargeMutation.isPending}
+            >
+              {dischargeMutation.isPending ? "Discharging..." : "Confirm Discharge"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Media Dialog */}
       <Dialog open={addMediaDialogOpen} onOpenChange={setAddMediaDialogOpen}>

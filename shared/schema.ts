@@ -70,6 +70,10 @@ export const patients = pgTable("patients", {
   allergies: text("allergies"),
   currentMedications: text("current_medications"),
   bloodType: text("blood_type"),
+  isInpatient: boolean("is_inpatient").notNull().default(false),
+  currentHospitalId: varchar("current_hospital_id").references(() => hospitals.id),
+  inpatientAdmittedAt: timestamp("inpatient_admitted_at"),
+  inpatientNotes: text("inpatient_notes"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -168,6 +172,24 @@ export const clinicalCases = pgTable("clinical_cases", {
   isComplete: boolean("is_complete").default(false),
   
   status: text("status").notNull().default('active'), // 'active' | 'closed'
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Patient Admissions - Inpatient tracking
+export const patientAdmissions = pgTable("patient_admissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
+  consultantId: varchar("consultant_id").references(() => users.id),
+  clinicalCaseId: varchar("clinical_case_id").references(() => clinicalCases.id, { onDelete: "set null" }),
+  admissionReason: text("admission_reason"),
+  diagnosisSummary: text("diagnosis_summary"),
+  admissionDate: timestamp("admission_date").notNull().default(sql`now()`),
+  status: text("status").notNull().default('admitted'), // 'admitted' | 'discharged' | 'transferred'
+  dischargeDate: timestamp("discharge_date"),
+  dischargeSummary: text("discharge_summary"),
+  createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -334,6 +356,7 @@ export const discharges = pgTable("discharges", {
 export const hospitalsRelations = relations(hospitals, ({ many }) => ({
   clinicSessions: many(clinicSessions),
   procedures: many(procedures),
+  admissions: many(patientAdmissions),
 }));
 
 export const clinicSessionsRelations = relations(clinicSessions, ({ one, many }) => ({
@@ -353,6 +376,7 @@ export const patientsRelations = relations(patients, ({ many }) => ({
   clinicalCases: many(clinicalCases),
   procedures: many(procedures),
   discharges: many(discharges),
+  admissions: many(patientAdmissions),
 }));
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
@@ -387,6 +411,26 @@ export const clinicalCasesRelations = relations(clinicalCases, ({ one, many }) =
   medicalImages: many(medicalImages),
   procedures: many(procedures),
   investigations: many(clinicalInvestigations),
+  admissions: many(patientAdmissions),
+}));
+
+export const patientAdmissionsRelations = relations(patientAdmissions, ({ one }) => ({
+  patient: one(patients, {
+    fields: [patientAdmissions.patientId],
+    references: [patients.id],
+  }),
+  hospital: one(hospitals, {
+    fields: [patientAdmissions.hospitalId],
+    references: [hospitals.id],
+  }),
+  consultant: one(users, {
+    fields: [patientAdmissions.consultantId],
+    references: [users.id],
+  }),
+  clinicalCase: one(clinicalCases, {
+    fields: [patientAdmissions.clinicalCaseId],
+    references: [clinicalCases.id],
+  }),
 }));
 
 export const clinicalInvestigationsRelations = relations(clinicalInvestigations, ({ one, many }) => ({
