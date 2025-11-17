@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,8 @@ import {
   Plus,
   Edit,
   Trash2,
-  Eye
+  Eye,
+  Bell
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { useState } from "react";
@@ -47,6 +49,7 @@ export default function AssistantCalendar() {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
   const [showSessionDialog, setShowSessionDialog] = useState(false);
+  const { clinic } = useClinic();
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -67,6 +70,28 @@ export default function AssistantCalendar() {
         .single();
       
       return data;
+    },
+  });
+
+  // Fetch reminders for this month
+  const { data: reminders = [] } = useQuery({
+    queryKey: ["reminders", format(monthStart, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reminders")
+        .select("*")
+        .eq("status", "active")
+        .gte("reminder_date", format(calendarStart, "yyyy-MM-dd"))
+        .lte("reminder_date", format(calendarEnd, "yyyy-MM-dd"))
+        .order("reminder_date", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching reminders:", error);
+        return [];
+      }
+
+      console.log("Assistant calendar - Fetched reminders:", data);
+      return data || [];
     },
   });
 
@@ -136,6 +161,13 @@ export default function AssistantCalendar() {
       const priorityAppts = session.appointments?.filter((apt: any) => apt.is_priority) || [];
       return total + priorityAppts.length;
     }, 0);
+  };
+
+  const getRemindersForDay = (day: Date) => {
+    return reminders.filter(reminder => {
+      const reminderDate = new Date(reminder.reminder_date);
+      return reminderDate.toDateString() === day.toDateString();
+    });
   };
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
@@ -254,6 +286,55 @@ export default function AssistantCalendar() {
           </CardContent>
         </Card>
 
+        {/* Upcoming Reminders - Next 7 Days */}
+        {reminders.filter(r => {
+          const reminderDate = new Date(r.reminder_date);
+          const today = new Date();
+          const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+          return reminderDate >= today && reminderDate <= sevenDaysFromNow;
+        }).length > 0 && (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Upcoming Reminders (Next 7 Days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {reminders.filter(r => {
+                  const reminderDate = new Date(r.reminder_date);
+                  const today = new Date();
+                  const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+                  return reminderDate >= today && reminderDate <= sevenDaysFromNow;
+                }).map((reminder) => (
+                  <div
+                    key={reminder.id}
+                    className="flex items-center gap-3 p-2 bg-white rounded-lg border border-amber-100"
+                  >
+                    <div
+                      className="w-1 h-12 rounded-full"
+                      style={{ backgroundColor: reminder.color_code }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900 truncate">
+                        {reminder.title}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {format(new Date(reminder.reminder_date), 'MMM dd, yyyy')}
+                        {reminder.description && ` • ${reminder.description}`}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs whitespace-nowrap">
+                      {reminder.reminder_type.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Calendar Grid */}
         {isLoading ? (
           <Card>
@@ -278,6 +359,7 @@ export default function AssistantCalendar() {
               <div className="hidden sm:grid grid-cols-7 gap-2">
                 {days.map((day) => {
                   const daySessions = getSessionsForDay(day);
+                  const dayReminders = getRemindersForDay(day);
                   const totalAppointments = getTotalAppointments(daySessions);
                   const priorityCount = getPriorityCount(daySessions);
                   const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -316,6 +398,21 @@ export default function AssistantCalendar() {
                       </div>
 
                       <div className="space-y-2">
+                        {/* Reminders */}
+                        {dayReminders.map((reminder) => (
+                          <div
+                            key={reminder.id}
+                            className="p-1.5 rounded text-xs flex items-center gap-1"
+                            style={{ backgroundColor: `${reminder.color_code}15`, borderLeft: `3px solid ${reminder.color_code}` }}
+                          >
+                            <Bell className="w-3 h-3" style={{ color: reminder.color_code }} />
+                            <span className="truncate font-medium" style={{ color: reminder.color_code }}>
+                              {reminder.title}
+                            </span>
+                          </div>
+                        ))}
+
+                        {/* Sessions */}
                         {daySessions.map((session) => (
                           <button
                             key={session.id}
@@ -380,12 +477,13 @@ export default function AssistantCalendar() {
               <div className="space-y-3 sm:hidden">
                 {days.map((day) => {
                   const daySessions = getSessionsForDay(day);
+                  const dayReminders = getRemindersForDay(day);
                   const totalAppointments = getTotalAppointments(daySessions);
                   const priorityCount = getPriorityCount(daySessions);
                   const isCurrentMonth = isSameMonth(day, currentMonth);
                   const isCurrentDay = isToday(day);
 
-                  if (!isCurrentMonth || daySessions.length === 0) {
+                  if (!isCurrentMonth || (daySessions.length === 0 && dayReminders.length === 0)) {
                     return null;
                   }
 
@@ -424,6 +522,21 @@ export default function AssistantCalendar() {
                       </div>
 
                       <div className="space-y-2">
+                        {/* Reminders */}
+                        {dayReminders.map((reminder) => (
+                          <div
+                            key={reminder.id}
+                            className="p-2 rounded-lg text-sm flex items-center gap-2"
+                            style={{ backgroundColor: `${reminder.color_code}15`, borderLeft: `3px solid ${reminder.color_code}` }}
+                          >
+                            <Bell className="w-4 h-4" style={{ color: reminder.color_code }} />
+                            <span className="font-medium" style={{ color: reminder.color_code }}>
+                              {reminder.title}
+                            </span>
+                          </div>
+                        ))}
+
+                        {/* Sessions */}
                         {daySessions.map((session) => (
                           <div
                             key={session.id}

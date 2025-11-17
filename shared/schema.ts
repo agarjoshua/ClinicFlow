@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, serial, date, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, serial, date, decimal, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -14,6 +14,20 @@ import { z } from "zod";
 // Complete schema for consultant + assistant workflow
 // ============================================
 
+// Clinics (tenants)
+export const clinics = pgTable("clinics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  ownerId: varchar("owner_id"),
+  subscriptionTier: text("subscription_tier").default('trial'),
+  subscriptionStatus: text("subscription_status").default('active'),
+  maxConsultants: integer("max_consultants").default(1),
+  maxAssistants: integer("max_assistants").default(2),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  settings: jsonb("settings"),
+});
+
 // Users table - Consultant and Assistant roles
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -22,6 +36,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   role: text("role").notNull(), // 'consultant' | 'assistant'
   phone: text("phone"),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -34,6 +49,7 @@ export const hospitals = pgTable("hospitals", {
   address: text("address"),
   phone: text("phone"),
   color: text("color").notNull().default('#3b82f6'), // For calendar color coding
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -55,6 +71,7 @@ export const clinicSessions = pgTable("clinic_sessions", {
 // Patients table - Patient demographic and medical information
 export const patients = pgTable("patients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   patientNumber: text("patient_number").notNull().unique(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
@@ -81,6 +98,7 @@ export const patients = pgTable("patients", {
 // Appointments/Bookings - Patient bookings for clinic sessions
 export const appointments = pgTable("appointments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   clinicSessionId: varchar("clinic_session_id").notNull().references(() => clinicSessions.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   consultantId: varchar("consultant_id").references(() => users.id), // Which doctor this appointment is FOR
@@ -103,6 +121,7 @@ export const appointments = pgTable("appointments", {
 // Clinical Cases - Diagnosis and clinical management
 export const clinicalCases = pgTable("clinical_cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   appointmentId: varchar("appointment_id").references(() => appointments.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   consultantId: varchar("consultant_id").notNull().references(() => users.id),
@@ -179,6 +198,7 @@ export const clinicalCases = pgTable("clinical_cases", {
 // Patient Admissions - Inpatient tracking
 export const patientAdmissions = pgTable("patient_admissions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
   consultantId: varchar("consultant_id").references(() => users.id),
@@ -248,6 +268,7 @@ export const clinicalInvestigations = pgTable("clinical_investigations", {
 // Procedures - Neurosurgical procedures
 export const procedures = pgTable("procedures", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   clinicalCaseId: varchar("clinical_case_id").notNull().references(() => clinicalCases.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
@@ -270,6 +291,7 @@ export const procedures = pgTable("procedures", {
 // Post-Op Plans - Treatment plan after procedure
 export const postOpPlans = pgTable("post_op_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   procedureId: varchar("procedure_id").notNull().unique().references(() => procedures.id, { onDelete: "cascade" }),
   medications: text("medications").notNull(),
   expectedStayDays: integer("expected_stay_days"),
@@ -289,6 +311,7 @@ export const postOpPlans = pgTable("post_op_plans", {
 // Post-Op Updates - Daily monitoring by assistant
 export const postOpUpdates = pgTable("post_op_updates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id),
   procedureId: varchar("procedure_id").notNull().references(() => procedures.id, { onDelete: "cascade" }),
   updateDate: date("update_date").notNull(),
   dayPostOp: integer("day_post_op").notNull(), // Day 1, Day 2, etc.
@@ -717,3 +740,38 @@ export type UpdatePostOpUpdate = z.infer<typeof updatePostOpUpdateSchema>;
 export type Discharge = typeof discharges.$inferSelect;
 export type InsertDischarge = z.infer<typeof insertDischargeSchema>;
 export type UpdateDischarge = z.infer<typeof updateDischargeSchema>;
+
+// Reminders table - Anniversaries, license renewals, custom reminders
+export const reminders = pgTable("reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  reminderType: text("reminder_type").notNull(), // 'anniversary' | 'license_renewal' | 'custom' | 'birthday'
+  reminderDate: timestamp("reminder_date").notNull(),
+  colorCode: text("color_code").default('#3B82F6'),
+  isRecurring: boolean("is_recurring").default(false),
+  recurrencePattern: text("recurrence_pattern"), // 'yearly' | 'monthly' | 'weekly' | 'daily'
+  recurrenceEndDate: timestamp("recurrence_end_date"),
+  notificationChannels: jsonb("notification_channels").default({ email: false, sms: false, in_app: true }),
+  notificationDaysBefore: integer("notification_days_before").array().default([7, 3, 1]),
+  status: text("status").default('active'), // 'active' | 'completed' | 'dismissed'
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const insertReminderSchema = createInsertSchema(reminders, {
+  title: z.string().min(1, "Title is required"),
+  reminderType: z.enum(['anniversary', 'license_renewal', 'custom', 'birthday']),
+  reminderDate: z.date().or(z.string()),
+  colorCode: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
+  recurrencePattern: z.enum(['yearly', 'monthly', 'weekly', 'daily']).optional(),
+  status: z.enum(['active', 'completed', 'dismissed']).optional(),
+});
+
+export const updateReminderSchema = insertReminderSchema.partial();
+
+export type Reminder = typeof reminders.$inferSelect;
+export type InsertReminder = z.infer<typeof insertReminderSchema>;
+export type UpdateReminder = z.infer<typeof updateReminderSchema>;

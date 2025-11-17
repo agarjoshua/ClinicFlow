@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Users, Clock, Hospital } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Users, Clock, Hospital, Bell } from "lucide-react";
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, startOfWeek, endOfWeek, isSameMonth } from "date-fns";
 import { useLocation } from "wouter";
 import { DayDetailsDialog } from "@/components/day-details-dialog";
@@ -14,6 +15,7 @@ export default function ConsultantCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [, setLocation] = useLocation();
+  const { clinic } = useClinic();
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -39,6 +41,28 @@ export default function ConsultantCalendar() {
         .single();
       
       return data;
+    },
+  });
+
+  // Fetch reminders for this month
+  const { data: reminders = [] } = useQuery({
+    queryKey: ["reminders", format(monthStart, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reminders")
+        .select("*")
+        .eq("status", "active")
+        .gte("reminder_date", format(calendarStart, "yyyy-MM-dd"))
+        .lte("reminder_date", format(calendarEnd, "yyyy-MM-dd"))
+        .order("reminder_date", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching reminders:", error);
+        return [];
+      }
+
+      console.log("Consultant calendar - Fetched reminders:", data);
+      return data || [];
     },
   });
 
@@ -96,6 +120,17 @@ export default function ConsultantCalendar() {
     return clinicSessions.filter(session => 
       isSameDay(parseISO(session.session_date), day)
     );
+  };
+
+  const getRemindersForDay = (day: Date) => {
+    const filtered = reminders.filter(reminder => {
+      const reminderDate = new Date(reminder.reminder_date);
+      return reminderDate.toDateString() === day.toDateString();
+    });
+    if (filtered.length > 0) {
+      console.log(`Reminders for ${day.toDateString()}:`, filtered);
+    }
+    return filtered;
   };
 
   const getTotalAppointments = (session: any) => {
@@ -188,6 +223,55 @@ export default function ConsultantCalendar() {
         </CardContent>
       </Card>
 
+      {/* Upcoming Reminders - Next 7 Days */}
+      {reminders.filter(r => {
+        const reminderDate = new Date(r.reminder_date);
+        const today = new Date();
+        const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+        return reminderDate >= today && reminderDate <= sevenDaysFromNow;
+      }).length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Upcoming Reminders (Next 7 Days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {reminders.filter(r => {
+                const reminderDate = new Date(r.reminder_date);
+                const today = new Date();
+                const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+                return reminderDate >= today && reminderDate <= sevenDaysFromNow;
+              }).map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="flex items-center gap-3 p-2 bg-white rounded-lg border border-amber-100"
+                >
+                  <div
+                    className="w-1 h-12 rounded-full"
+                    style={{ backgroundColor: reminder.color_code }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm text-gray-900 truncate">
+                      {reminder.title}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {format(new Date(reminder.reminder_date), 'MMM dd, yyyy')}
+                      {reminder.description && ` • ${reminder.description}`}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-xs whitespace-nowrap">
+                    {reminder.reminder_type.replace('_', ' ')}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Monthly Calendar Grid */}
       {isLoading ? (
         <div className="text-center py-12">
@@ -230,6 +314,7 @@ export default function ConsultantCalendar() {
             <div className="hidden sm:grid grid-cols-7 gap-2">
               {daysInCalendar.map((day) => {
                 const sessions = getSessionsForDay(day);
+                const dayReminders = getRemindersForDay(day);
                 const isToday = isSameDay(day, new Date());
                 const isCurrentMonth = isSameMonth(day, currentMonth);
 
@@ -259,7 +344,22 @@ export default function ConsultantCalendar() {
                     </div>
                     
                     <div className="space-y-1">
-                      {sessions.length === 0 ? (
+                      {/* Reminders */}
+                      {dayReminders.map((reminder) => (
+                        <div
+                          key={reminder.id}
+                          className="p-1.5 rounded text-xs flex items-center gap-1"
+                          style={{ backgroundColor: `${reminder.color_code}15`, borderLeft: `3px solid ${reminder.color_code}` }}
+                        >
+                          <Bell className="w-3 h-3" style={{ color: reminder.color_code }} />
+                          <span className="truncate font-medium" style={{ color: reminder.color_code }}>
+                            {reminder.title}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* Sessions */}
+                      {sessions.length === 0 && dayReminders.length === 0 ? (
                         <div className="text-xs text-gray-300 text-center py-2 sm:py-4">
                           {/* Empty day */}
                         </div>

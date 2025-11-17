@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinicScope, useRequiredClinicId } from "@/hooks/use-clinic-scope";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,8 @@ interface Hospital {
 
 export default function Hospitals() {
   const { toast } = useToast();
+  const scopeToClinic = useClinicScope();
+  const clinicId = useRequiredClinicId();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingHospital, setEditingHospital] = useState<Hospital | null>(null);
   const [formData, setFormData] = useState({
@@ -71,9 +74,10 @@ export default function Hospitals() {
           .eq("id", editingHospital.id);
         if (error) throw error;
       } else {
+        const payload = clinicId ? { ...data, clinic_id: clinicId } : data;
         const { error } = await supabase
           .from("hospitals")
-          .insert([data]);
+          .insert([payload]);
         if (error) throw error;
       }
     },

@@ -56,6 +56,7 @@ export default function Patients() {
           currentHospital:hospitals(id, name, color)
         `)
         .order("created_at", { ascending: false });
+      
       if (error) throw error;
       
       // Transform snake_case to camelCase

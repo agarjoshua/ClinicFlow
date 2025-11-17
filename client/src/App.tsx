@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { queryClient } from "./lib/queryClient";
@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { useClinic, ClinicProvider } from "@/contexts/ClinicContext";
 import AssistantDashboard from "@/pages/assistant-dashboard";
 import AssistantCalendar from "@/pages/assistant-calendar";
 import AuthPage from "@/pages/auth";
@@ -27,6 +28,13 @@ import PostOpUpdates from "@/pages/post-op-updates";
 import ScheduleClinic from "@/pages/schedule-clinic";
 import ClinicSessionDetail from "@/pages/clinic-session-detail";
 import Inpatients from "@/pages/inpatients";
+import ClinicOnboardingPage from "@/pages/clinic-onboarding";
+import TeamManagementPage from "@/pages/team-management";
+import AcceptInvitationPage from "@/pages/accept-invitation";
+import SubscriptionPage from "@/pages/subscription";
+import BillingPage from "@/pages/billing";
+import OrganizationProfilePage from "@/pages/organization-profile";
+import RemindersPage from "@/pages/reminders";
 import NotFound from "@/pages/not-found";
 
 function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
@@ -52,18 +60,27 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
       <Route path="/clinical-cases" component={ClinicalCases} />
       <Route path="/procedures" component={Procedures} />
       <Route path="/hospitals" component={Hospitals} />
+      <Route path="/onboarding" component={ClinicOnboardingPage} />
+      <Route path="/team" component={TeamManagementPage} />
+      <Route path="/subscription" component={SubscriptionPage} />
+      <Route path="/billing" component={BillingPage} />
+      <Route path="/organization" component={OrganizationProfilePage} />
+      <Route path="/reminders" component={RemindersPage} />
+      <Route path="/accept-invitation" component={AcceptInvitationPage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-export default function App() {
+function AppContent() {
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
 
+  const [location, navigate] = useLocation();
+  const { clinic, isLoading: isClinicLoading } = useClinic();
   const [session, setSession] = useState<any>(null);
   const [userRole, setUserRole] = useState<"consultant" | "assistant" | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -129,8 +146,8 @@ export default function App() {
   
   const showSidebar = !!session && !isAuthRoute && !!userData && !!userRole;
 
-  // Show loading screen while checking auth
-  if (isLoading) {
+  // Show loading screen while checking auth or clinic
+  if (isLoading || isClinicLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-white">
         <div className="text-center space-y-4">
@@ -181,34 +198,46 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        {showSidebar ? (
-          <SidebarProvider style={style as React.CSSProperties}>
-            <div className="flex h-screen w-full">
-              <AppSidebar userRole={userRole} userData={userData} />
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <header className="flex items-center justify-between p-4 border-b">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">{userData?.name}</p>
-                      <p className="text-xs text-gray-500 capitalize">{userRole}</p>
+      <ClinicProvider>
+        <TooltipProvider>
+          {showSidebar ? (
+            <SidebarProvider style={style as React.CSSProperties}>
+              <div className="flex h-screen w-full">
+                <AppSidebar userRole={userRole} userData={userData} />
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  <header className="flex items-center justify-between p-4 border-b">
+                    <SidebarTrigger data-testid="button-sidebar-toggle" />
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">{userData?.name}</p>
+                        <p className="text-xs text-gray-500 capitalize">{userRole}</p>
+                      </div>
                     </div>
-                  </div>
-                </header>
-                <main className="flex-1 overflow-auto p-6">
-                  <div className="max-w-7xl mx-auto">
-                    <Router userRole={userRole} />
-                  </div>
-                </main>
+                  </header>
+                  <main className="flex-1 overflow-auto p-6">
+                    <div className="max-w-7xl mx-auto">
+                      <Router userRole={userRole} />
+                    </div>
+                  </main>
+                </div>
               </div>
-            </div>
-          </SidebarProvider>
-        ) : (
-          <Router userRole={userRole} />
-        )}
-        <Toaster />
-      </TooltipProvider>
+            </SidebarProvider>
+          ) : (
+            <Router userRole={userRole} />
+          )}
+          <Toaster />
+        </TooltipProvider>
+      </ClinicProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ClinicProvider>
+        <AppContent />
+      </ClinicProvider>
     </QueryClientProvider>
   );
 }

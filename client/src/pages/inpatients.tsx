@@ -100,8 +100,8 @@ export default function Inpatients() {
         .eq("is_inpatient", true)
         .order("inpatient_admitted_at", { ascending: false });
 
-  if (queryError) throw queryError;
-  return (result as unknown as RawInpatient[]) || [];
+      if (queryError) throw queryError;
+      return (result as unknown as RawInpatient[]) || [];
     },
   });
 

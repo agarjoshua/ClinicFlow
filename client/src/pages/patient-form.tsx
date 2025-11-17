@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useRequiredClinicId } from "@/hooks/use-clinic-scope";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function PatientForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const clinicId = useRequiredClinicId();
 
   // Personal Information
   const [firstName, setFirstName] = useState("");
@@ -63,6 +65,10 @@ export default function PatientForm() {
   // Register patient mutation
   const registerPatient = useMutation({
     mutationFn: async () => {
+      if (!clinicId) {
+        throw new Error("No clinic selected. Please complete onboarding first.");
+      }
+      
       const patientNumber = generatePatientNumber();
       const age = dateOfBirth ? calculateAge(dateOfBirth) : null;
 
@@ -70,6 +76,7 @@ export default function PatientForm() {
         .from("patients")
         .insert([
           {
+            clinic_id: clinicId,
             patient_number: patientNumber,
             first_name: firstName,
             last_name: lastName,

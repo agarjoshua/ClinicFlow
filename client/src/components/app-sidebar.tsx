@@ -1,4 +1,4 @@
-import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble } from "lucide-react";
+import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble, UsersRound, CreditCard, Crown, Bell, Building2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -47,7 +47,16 @@ const consultantMenuItems = [
     url: "/hospitals",
     icon: Hospital,
   },
-  
+  {
+    title: "Reminders",
+    url: "/reminders",
+    icon: Bell,
+  },
+  {
+    title: "Team",
+    url: "/team",
+    icon: UsersRound,
+  },
 ];
 
 const assistantMenuItems = [
@@ -105,6 +114,34 @@ const assistantMenuItems = [
     title: "Calendar Management",
     url: "/calendar",
     icon: Calendar,
+  },
+  {
+    title: "Reminders",
+    url: "/reminders",
+    icon: Bell,
+  },
+  {
+    title: "Team",
+    url: "/team",
+    icon: UsersRound,
+  },
+];
+
+const settingsMenuItems = [
+  {
+    title: "Organization",
+    url: "/organization",
+    icon: Building2,
+  },
+  {
+    title: "Subscription",
+    url: "/subscription",
+    icon: Crown,
+  },
+  {
+    title: "Billing",
+    url: "/billing",
+    icon: CreditCard,
   },
 ];
 
@@ -165,6 +202,27 @@ export function AppSidebar({ userRole = null, userData }: AppSidebarProps) {
                     asChild
                     isActive={location === item.url}
                     data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="w-5 h-5" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsMenuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
                   >
                     <Link href={item.url}>
                       <item.icon className="w-5 h-5" />
