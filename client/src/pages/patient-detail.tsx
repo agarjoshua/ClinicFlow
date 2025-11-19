@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,7 @@ export default function PatientDetail() {
   const [, params] = useRoute("/patients/:id");
   const patientId = params?.id;
   const { toast } = useToast();
+  const { clinic } = useClinic();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedPatient, setEditedPatient] = useState<any>(null);
@@ -154,12 +156,15 @@ export default function PatientDetail() {
 
   // Query for patient data
   const { data: patient, isLoading: patientLoading } = useQuery({
-    queryKey: ["patient", patientId],
+    queryKey: ["patient", patientId, clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return null;
+      
       const { data, error } = await supabase
         .from("patients")
         .select("*")
         .eq("id", patientId)
+        .eq("clinic_id", clinic.id)
         .single();
 
       if (error) throw error;
@@ -197,13 +202,15 @@ export default function PatientDetail() {
       }
       return data;
     },
-    enabled: !!patientId,
+    enabled: !!clinic?.id && !!patientId,
   });
 
   // Query for appointments
   const { data: appointments = [], isLoading: appointmentsLoading } = useQuery({
-    queryKey: ["patient-appointments", patientId],
+    queryKey: ["patient-appointments", clinic?.id, patientId],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("appointments")
         .select(`
@@ -219,22 +226,26 @@ export default function PatientDetail() {
             )
           )
         `)
+        .eq("clinic_id", clinic.id)
         .eq("patient_id", patientId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;
     },
-    enabled: !!patientId,
+    enabled: !!clinic?.id && !!patientId,
   });
 
   // Query for clinical cases (diagnoses) with media
   const { data: clinicalCases = [] } = useQuery({
-    queryKey: ["patient-clinical-cases", patientId],
+    queryKey: ["patient-clinical-cases", clinic?.id, patientId],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data: casesData, error: casesError } = await supabase
         .from("clinical_cases")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .eq("patient_id", patientId)
         .order("case_date", { ascending: false });
 
@@ -257,31 +268,38 @@ export default function PatientDetail() {
 
       return casesWithImages;
     },
-    enabled: !!patientId,
+    enabled: !!clinic?.id && !!patientId,
   });
 
   const { data: hospitals = [], isLoading: hospitalsLoading } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("id, name, color")
+        .eq("clinic_id", clinic.id)
         .order("name", { ascending: true });
 
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   const { data: admissions = [], isLoading: admissionsLoading } = useQuery({
-    queryKey: ["patient-admissions", patientId],
+    queryKey: ["patient-admissions", clinic?.id, patientId],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("patient_admissions")
         .select(`
           *,
           hospital:hospitals (id, name, color)
         `)
+        .eq("clinic_id", clinic.id)
         .eq("patient_id", patientId)
         .order("admission_date", { ascending: false });
 
@@ -299,7 +317,7 @@ export default function PatientDetail() {
         dischargeSummary: admission.discharge_summary,
       }));
     },
-    enabled: !!patientId,
+    enabled: !!clinic?.id && !!patientId,
   });
 
   const activeAdmission = admissions.find((admission: any) => admission.status === "admitted");
@@ -335,6 +353,10 @@ export default function PatientDetail() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (updatedData: any) => {
+      if (!clinic?.id) {
+        throw new Error("No clinic selected.");
+      }
+      
       const { error } = await supabase
         .from("patients")
         .update({
@@ -352,7 +374,8 @@ export default function PatientDetail() {
           allergies: updatedData.allergies,
           current_medications: updatedData.currentMedications,
         })
-        .eq("id", patientId);
+        .eq("id", patientId)
+        .eq("clinic_id", clinic.id);
 
       if (error) throw error;
     },
@@ -377,10 +400,15 @@ export default function PatientDetail() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async () => {
+      if (!clinic?.id) {
+        throw new Error("No clinic selected.");
+      }
+      
       const { error } = await supabase
         .from("patients")
         .delete()
-        .eq("id", patientId);
+        .eq("id", patientId)
+        .eq("clinic_id", clinic.id);
 
       if (error) throw error;
     },
@@ -429,6 +457,7 @@ export default function PatientDetail() {
       const { error: admissionError } = await supabase
         .from("patient_admissions")
         .insert({
+          clinic_id: clinic.id,
           patient_id: patientId,
           hospital_id: payload.hospitalId,
           consultant_id: userRecord.id,
@@ -449,7 +478,8 @@ export default function PatientDetail() {
           inpatient_admitted_at: admissionDateIso,
           inpatient_notes: payload.notes,
         })
-        .eq("id", patientId);
+        .eq("id", patientId)
+        .eq("clinic_id", clinic.id);
 
       if (patientUpdateError) throw patientUpdateError;
     },
@@ -498,6 +528,7 @@ export default function PatientDetail() {
           discharge_date: dischargeDateIso,
           discharge_summary: payload.dischargeSummary,
         })
+        .eq("clinic_id", clinic.id)
         .eq("id", activeAdmission.id);
 
       if (admissionUpdateError) throw admissionUpdateError;
@@ -510,7 +541,8 @@ export default function PatientDetail() {
           inpatient_admitted_at: null,
           inpatient_notes: payload.notes,
         })
-        .eq("id", patientId);
+        .eq("id", patientId)
+        .eq("clinic_id", clinic.id);
 
       if (patientUpdateError) throw patientUpdateError;
     },
@@ -682,6 +714,7 @@ export default function PatientDetail() {
         const { data, error } = await supabase
           .from("clinical_cases")
           .insert({
+            clinic_id: clinic.id,
             patient_id: patientId,
             consultant_id: userData.id,
             documentation_mode: 'apoc',
@@ -699,6 +732,7 @@ export default function PatientDetail() {
       const { data, error } = await supabase
         .from("clinical_cases")
         .insert({
+          clinic_id: clinic.id,
           patient_id: patientId,
           consultant_id: userData.id,
           documentation_mode: 'legacy',

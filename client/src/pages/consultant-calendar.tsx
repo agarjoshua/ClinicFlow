@@ -66,19 +66,28 @@ export default function ConsultantCalendar() {
     },
   });
 
-  // Fetch clinic sessions for this month with ALL appointments assigned to this consultant
+  // Fetch ALL clinic sessions for this clinic (filtered by hospital_id)
   const { data: clinicSessions = [], isLoading } = useQuery({
-    queryKey: ["clinicSessions", format(monthStart, "yyyy-MM-dd"), currentUser?.id],
+    queryKey: ["clinicSessions", format(monthStart, "yyyy-MM-dd"), clinic?.id],
     queryFn: async () => {
-      if (!currentUser?.id) return [];
+      if (!clinic?.id) return [];
       
-      // Get all clinic sessions that have appointments for this consultant
+      // First get clinic's hospital IDs
+      const { data: hospitalData } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("clinic_id", clinic.id);
+      
+      if (!hospitalData || hospitalData.length === 0) return [];
+      const hospitalIds = hospitalData.map(h => h.id);
+      
+      // Then filter sessions by those hospitals
       const { data, error } = await supabase
         .from("clinic_sessions")
         .select(`
           *,
           hospital:hospitals(*),
-          appointments!inner(
+          appointments(
             id,
             booking_number,
             is_priority,
@@ -88,7 +97,7 @@ export default function ConsultantCalendar() {
             patient:patients(first_name, last_name, patient_number)
           )
         `)
-        .eq("appointments.consultant_id", currentUser.id)
+        .in("hospital_id", hospitalIds)
         .gte("session_date", format(calendarStart, "yyyy-MM-dd"))
         .lte("session_date", format(calendarEnd, "yyyy-MM-dd"))
         .order("session_date", { ascending: true })
@@ -101,19 +110,24 @@ export default function ConsultantCalendar() {
 
       return data || [];
     },
-    enabled: !!currentUser?.id,
+    enabled: !!clinic?.id && !!currentUser?.id,
   });
 
   // Fetch hospitals for quick access
   const { data: hospitals = [] } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!clinic?.id) return [];
+      
+      const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
+      if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   const getSessionsForDay = (day: Date) => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import { queryClient } from "@/lib/queryClient";
 
 export default function Appointments() {
   const [, setLocation] = useLocation();
+  const { clinic } = useClinic();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [hospitalFilter, setHospitalFilter] = useState("all");
@@ -45,15 +47,18 @@ export default function Appointments() {
   // Confirm appointment mutation
   const confirmMutation = useMutation({
     mutationFn: async (appointmentId: string) => {
+      if (!clinic?.id) throw new Error("No clinic selected");
+      
       const { error } = await supabase
         .from("appointments")
         .update({ status: "confirmed" })
-        .eq("id", appointmentId);
+        .eq("id", appointmentId)
+        .eq("clinic_id", clinic.id);
       
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments", clinic?.id] });
       toast({
         title: "Success",
         description: "Appointment confirmed successfully",
@@ -70,8 +75,10 @@ export default function Appointments() {
 
   // Fetch all appointments with related data
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["appointments"],
+    queryKey: ["appointments", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("appointments")
         .select(`
@@ -102,6 +109,7 @@ export default function Appointments() {
             name
           )
         `)
+        .eq("clinic_id", clinic.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -137,19 +145,24 @@ export default function Appointments() {
         createdBy: apt.created_by_user?.name || "Unknown",
       }));
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch hospitals for filtering
   const { data: hospitals = [] } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Filter appointments

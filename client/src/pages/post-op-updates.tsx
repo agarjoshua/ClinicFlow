@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,11 +65,14 @@ export default function PostOpUpdates() {
   const [woundStatus, setWoundStatus] = useState("");
 
   const { toast } = useToast();
+  const { clinic } = useClinic();
 
   // Fetch all post-op updates for the procedures
   const { data: allPostOpUpdates = [], isLoading } = useQuery({
-    queryKey: ["allPostOpUpdates"],
+    queryKey: ["allPostOpUpdates", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data } = await supabase
         .from("post_op_updates")
         .select(`
@@ -88,11 +92,13 @@ export default function PostOpUpdates() {
             hospital:hospitals(id, name, code, color)
           )
         `)
+        .eq("clinic_id", clinic.id)
         .order("update_date", { ascending: false })
         .order("day_post_op", { ascending: false });
 
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Filter updates based on search
@@ -111,6 +117,7 @@ export default function PostOpUpdates() {
     mutationFn: async (data: any) => {
       const user = await supabase.auth.getUser();
       const updateData = {
+        clinic_id: clinic.id,
         procedure_id: data.procedureId,
         update_date: new Date().toISOString().split('T')[0],
         day_post_op: parseInt(data.dayPostOp),
@@ -136,6 +143,7 @@ export default function PostOpUpdates() {
         const { error } = await supabase
           .from("post_op_updates")
           .update(updateData)
+          .eq("clinic_id", clinic.id)
           .eq("id", selectedUpdate.id);
         if (error) throw error;
       } else {

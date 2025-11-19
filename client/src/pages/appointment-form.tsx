@@ -68,15 +68,19 @@ export default function AppointmentForm() {
 
   // Fetch hospitals
   const { data: hospitals = [] } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch consultants (doctors)
@@ -93,11 +97,21 @@ export default function AppointmentForm() {
     },
   });
 
-  // Fetch clinic sessions for selected hospital
+  // Fetch clinic sessions for selected hospital (verified it belongs to clinic via hospitals query)
   const { data: clinicSessions = [] } = useQuery({
-    queryKey: ["clinicSessions", selectedHospital],
+    queryKey: ["clinicSessions", selectedHospital, clinic?.id],
     queryFn: async () => {
-      if (!selectedHospital) return [];
+      if (!selectedHospital || !clinic?.id) return [];
+      
+      // Verify the selected hospital belongs to this clinic
+      const { data: hospitalCheck } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("id", selectedHospital)
+        .eq("clinic_id", clinic.id)
+        .single();
+      
+      if (!hospitalCheck) return [];
       
       const { data, error } = await supabase
         .from("clinic_sessions")
@@ -114,16 +128,19 @@ export default function AppointmentForm() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!selectedHospital,
+    enabled: !!selectedHospital && !!clinic?.id,
   });
 
   // Fetch all patients for search
   const { data: patients = [] } = useQuery({
-    queryKey: ["patients"],
+    queryKey: ["patients", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("patients")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       
@@ -141,15 +158,19 @@ export default function AppointmentForm() {
         bloodType: p.blood_type,
       }));
     },
+    enabled: !!clinic?.id,
   });
 
   // Create appointment mutation
   const createAppointment = useMutation({
     mutationFn: async (appointmentData: any) => {
       // Get current appointment count for this session to calculate booking number
+      if (!appointmentData.clinicId) throw new Error("No clinic selected");
+      
       const { data: existingAppointments } = await supabase
         .from("appointments")
         .select("id")
+        .eq("clinic_id", appointmentData.clinicId)
         .eq("clinic_session_id", appointmentData.sessionId);
       
       const bookingNumber = (existingAppointments?.length || 0) + 1;

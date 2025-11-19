@@ -92,8 +92,10 @@ export default function Diagnoses() {
 
   // Fetch confirmed appointments (ready for diagnosis)
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["diagnosis-appointments", hospitalFilter],
+    queryKey: ["diagnosis-appointments", clinic?.id, hospitalFilter],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       let query = supabase
         .from("appointments")
         .select(`
@@ -123,6 +125,7 @@ export default function Diagnoses() {
             )
           )
         `)
+        .eq("clinic_id", clinic.id)
         .eq("status", "confirmed")
         .order("clinic_session(session_date)", { ascending: true })
         .order("booking_number", { ascending: true });
@@ -179,15 +182,19 @@ export default function Diagnoses() {
 
   // Fetch hospitals for filtering
   const { data: hospitals = [] } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Create diagnosis mutation
@@ -301,17 +308,20 @@ export default function Diagnoses() {
       }
 
       // Update appointment status to "seen"
+      if (!clinic?.id) throw new Error("No clinic selected");
+      
       const { error: updateError } = await supabase
         .from("appointments")
         .update({ status: "seen" })
-        .eq("id", appointmentId);
+        .eq("id", appointmentId)
+        .eq("clinic_id", clinic.id);
 
       if (updateError) throw updateError;
 
       return clinicalCase;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["diagnosis-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["diagnosis-appointments", clinic?.id] });
       toast({
         title: "Success",
         description: "Diagnosis recorded successfully with media",

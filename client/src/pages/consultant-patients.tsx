@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,7 @@ import { queryClient } from "@/lib/queryClient";
 export default function ConsultantPatients() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { clinic } = useClinic();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "inpatient" | "outpatient">("all");
   const [sortBy, setSortBy] = useState<"recent" | "overdue" | "upcoming">("recent");
@@ -136,9 +138,9 @@ export default function ConsultantPatients() {
 
   // Fetch all patients with care tracking data
   const { data: patients = [], isLoading } = useQuery({
-    queryKey: ["consultant-patients", currentUser?.id],
+    queryKey: ["consultant-patients", clinic?.id, currentUser?.id],
     queryFn: async () => {
-      if (!currentUser?.id) return [];
+      if (!clinic?.id || !currentUser?.id) return [];
       
       const { data, error } = await supabase
         .from("patients")
@@ -163,6 +165,7 @@ export default function ConsultantPatients() {
             follow_up_instructions
           )
         `)
+        .eq("clinic_id", clinic.id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -221,14 +224,14 @@ export default function ConsultantPatients() {
         };
       });
     },
-    enabled: !!currentUser?.id,
+    enabled: !!clinic?.id && !!currentUser?.id,
   });
 
   // Fetch inpatient data (patients currently admitted - procedures done but not discharged)
   const { data: inpatients = [] } = useQuery({
-    queryKey: ["inpatients", currentUser?.id],
+    queryKey: ["inpatients", clinic?.id, currentUser?.id],
     queryFn: async () => {
-      if (!currentUser?.id) return [];
+      if (!currentUser?.id || !clinic?.id) return [];
       
       // First, get all procedures that are done
       const { data: proceduresData, error: procError } = await supabase
@@ -239,6 +242,7 @@ export default function ConsultantPatients() {
           hospital:hospitals(*),
           clinical_case:clinical_cases(*)
         `)
+        .eq("clinic_id", clinic.id)
         .eq("consultant_id", currentUser.id)
         .eq("status", "done")
         .order("actual_date", { ascending: false });
@@ -272,14 +276,23 @@ export default function ConsultantPatients() {
       // Filter to only include procedures that haven't been discharged
       return proceduresData.filter(proc => !dischargedProcedureIds.has(proc.id));
     },
-    enabled: !!currentUser?.id,
+    enabled: !!clinic?.id && !!currentUser?.id,
   });
 
   // Fetch upcoming clinic sessions for booking
   const { data: upcomingClinics = [] } = useQuery({
-    queryKey: ["upcoming-clinics", currentUser?.id],
+    queryKey: ["upcoming-clinics", currentUser?.id, clinic?.id],
     queryFn: async () => {
-      if (!currentUser?.id) return [];
+      if (!currentUser?.id || !clinic?.id) return [];
+      
+      // First get clinic's hospital IDs
+      const { data: hospitalData } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("clinic_id", clinic.id);
+      
+      if (!hospitalData || hospitalData.length === 0) return [];
+      const hospitalIds = hospitalData.map(h => h.id);
       
       const today = format(new Date(), "yyyy-MM-dd");
       const { data, error } = await supabase
@@ -288,6 +301,7 @@ export default function ConsultantPatients() {
           *,
           hospital:hospitals(*)
         `)
+        .in("hospital_id", hospitalIds)
         .eq("consultant_id", currentUser.id)
         .gte("session_date", today)
         .order("session_date", { ascending: true })
@@ -296,22 +310,28 @@ export default function ConsultantPatients() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!currentUser?.id,
+    enabled: !!currentUser?.id && !!clinic?.id,
   });
 
   // Create patient mutation
   const createPatientMutation = useMutation({
     mutationFn: async (formData: any) => {
+      if (!clinic?.id) {
+        throw new Error("No clinic selected. Please complete onboarding first.");
+      }
+      
       // Generate patient number
       const { count } = await supabase
         .from("patients")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("clinic_id", clinic.id);
       
       const patientNumber = `P${String((count || 0) + 1).padStart(6, "0")}`;
       
       const { data, error } = await supabase
         .from("patients")
         .insert({
+          clinic_id: clinic.id,
           patient_number: patientNumber,
           first_name: formData.firstName,
           last_name: formData.lastName,
@@ -355,6 +375,10 @@ export default function ConsultantPatients() {
   // Update patient mutation
   const updatePatientMutation = useMutation({
     mutationFn: async ({ id, formData }: any) => {
+      if (!clinic?.id) {
+        throw new Error("No clinic selected.");
+      }
+      
       const { data, error } = await supabase
         .from("patients")
         .update({
@@ -374,6 +398,7 @@ export default function ConsultantPatients() {
           blood_type: formData.bloodType || null,
         })
         .eq("id", id)
+        .eq("clinic_id", clinic.id)
         .select()
         .single();
       
@@ -402,10 +427,15 @@ export default function ConsultantPatients() {
   // Delete patient mutation
   const deletePatientMutation = useMutation({
     mutationFn: async (patientId: string) => {
+      if (!clinic?.id) {
+        throw new Error("No clinic selected.");
+      }
+      
       const { error } = await supabase
         .from("patients")
         .delete()
-        .eq("id", patientId);
+        .eq("id", patientId)
+        .eq("clinic_id", clinic.id);
       
       if (error) throw error;
     },
@@ -433,9 +463,12 @@ export default function ConsultantPatients() {
       if (!currentUser?.id) throw new Error("User not authenticated");
       
       // Get current booking count for this session
+      if (!clinic?.id) throw new Error("No clinic selected");
+      
       const { count } = await supabase
         .from("appointments")
         .select("*", { count: "exact", head: true })
+        .eq("clinic_id", clinic.id)
         .eq("clinic_session_id", formData.clinicSessionId);
       
       const bookingNumber = (count || 0) + 1;
@@ -443,6 +476,7 @@ export default function ConsultantPatients() {
       const { data, error } = await supabase
         .from("appointments")
         .insert({
+          clinic_id: clinic.id,
           clinic_session_id: formData.clinicSessionId,
           patient_id: patientId,
           consultant_id: currentUser.id,

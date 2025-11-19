@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function ScheduleClinic() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { clinic } = useClinic();
   const [date, setDate] = useState<Date>();
   const [hospitalId, setHospitalId] = useState("");
   const [startTime, setStartTime] = useState("09:00");
@@ -31,15 +33,19 @@ export default function ScheduleClinic() {
 
   // Fetch hospitals
   const { data: hospitals } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
       if (error) throw error;
       return data;
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch current user

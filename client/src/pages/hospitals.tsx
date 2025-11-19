@@ -52,16 +52,20 @@ export default function Hospitals() {
 
   // Fetch hospitals
   const { data: hospitals, isLoading } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinicId],
     queryFn: async () => {
+      if (!clinicId) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinicId)
         .order("name");
       
       if (error) throw error;
       return data as Hospital[];
     },
+    enabled: !!clinicId,
   });
 
   // Create/Update mutation

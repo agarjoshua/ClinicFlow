@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { useEffect, useState } from "react";
 
 export default function AssistantDashboard() {
   const [, setLocation] = useLocation();
+  const { clinic } = useClinic();
   const [isAuthed, setIsAuthed] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
@@ -36,11 +38,24 @@ export default function AssistantDashboard() {
 
   // Fetch today's clinic sessions
   const { data: todayClinics = [] } = useQuery({
-    queryKey: ["todayClinics"],
-    enabled: isAuthed,
+    queryKey: ["todayClinics", clinic?.id],
+    enabled: isAuthed && !!clinic?.id,
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const today = format(new Date(), "yyyy-MM-dd");
       console.log("Fetching clinics for:", today);
+      
+      // First get clinic's hospital IDs
+      const { data: hospitalData } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("clinic_id", clinic.id);
+      
+      if (!hospitalData || hospitalData.length === 0) return [];
+      const hospitalIds = hospitalData.map(h => h.id);
+      
+      // Then filter sessions by those hospitals
       const { data, error } = await supabase
         .from("clinic_sessions")
         .select(`
@@ -57,6 +72,7 @@ export default function AssistantDashboard() {
           consultant:users!consultant_id(id, name),
           appointments(id, booking_number, status, is_priority)
         `)
+        .in("hospital_id", hospitalIds)
         .eq("session_date", today)
         .eq("status", "scheduled")
         .order("start_time");
@@ -69,9 +85,11 @@ export default function AssistantDashboard() {
 
   // Fetch pending triage appointments
   const { data: pendingTriage = [] } = useQuery({
-    queryKey: ["pendingTriage"],
-    enabled: isAuthed,
+    queryKey: ["pendingTriage", clinic?.id],
+    enabled: isAuthed && !!clinic?.id,
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       console.log("Fetching pending triage appointments");
       const { data, error } = await supabase
         .from("appointments")
@@ -88,6 +106,7 @@ export default function AssistantDashboard() {
           patient:patients(id, first_name, last_name, patient_number),
           clinic_session:clinic_sessions(id, session_date, start_time, hospital:hospitals(id, name, code, color))
         `)
+        .eq("clinic_id", clinic.id)
         .eq("status", "booked")
         .is("triage_notes", null)
         .order("created_at", { ascending: false })
@@ -101,9 +120,11 @@ export default function AssistantDashboard() {
 
   // Fetch active post-op patients
   const { data: activePostOp = [] } = useQuery({
-    queryKey: ["activePostOp"],
-    enabled: isAuthed,
+    queryKey: ["activePostOp", clinic?.id],
+    enabled: isAuthed && !!clinic?.id,
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       console.log("Fetching active post-op patients");
       // First get all procedures marked as done
       const { data: procedures, error: procError } = await supabase
@@ -124,6 +145,7 @@ export default function AssistantDashboard() {
           hospital:hospitals(id, name, code, color),
           post_op_updates(id, update_date, day_post_op, gcs_score)
         `)
+        .eq("clinic_id", clinic.id)
         .eq("status", "done")
         .order("actual_date", { ascending: false });
 
@@ -150,9 +172,11 @@ export default function AssistantDashboard() {
 
   // Fetch upcoming procedures
   const { data: upcomingProcedures = [] } = useQuery({
-    queryKey: ["upcomingProcedures"],
-    enabled: isAuthed,
+    queryKey: ["upcomingProcedures", clinic?.id],
+    enabled: isAuthed && !!clinic?.id,
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const today = format(new Date(), "yyyy-MM-dd");
       console.log("Fetching upcoming procedures for:", today);
       const { data, error } = await supabase
@@ -171,6 +195,7 @@ export default function AssistantDashboard() {
           hospital:hospitals(id, name, code, color),
           consultant:users!consultant_id(id, name)
         `)
+        .eq("clinic_id", clinic.id)
         .eq("status", "scheduled")
         .gte("scheduled_date", today)
         .order("scheduled_date")

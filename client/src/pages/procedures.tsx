@@ -90,8 +90,10 @@ export default function Procedures() {
 
   // Fetch procedures by status
   const { data: procedures = [], isLoading } = useQuery({
-    queryKey: ["procedures", activeTab],
+    queryKey: ["procedures", clinic?.id, activeTab],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("procedures")
         .select(`
@@ -121,6 +123,7 @@ export default function Procedures() {
             role
           )
         `)
+        .eq("clinic_id", clinic.id)
         .eq("status", activeTab)
         .order("scheduled_date", { ascending: true });
 
@@ -148,12 +151,15 @@ export default function Procedures() {
         consultant: proc.consultant,
       }));
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch clinical cases (diagnosed patients) for scheduling
   const { data: clinicalCases = [] } = useQuery({
-    queryKey: ["clinical-cases-for-procedures"],
+    queryKey: ["clinical-cases-for-procedures", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("clinical_cases")
         .select(`
@@ -167,6 +173,7 @@ export default function Procedures() {
             gender
           )
         `)
+        .eq("clinic_id", clinic.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -187,19 +194,24 @@ export default function Procedures() {
         } : null,
       }));
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch hospitals
   const { data: hospitals = [] } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch doctors/consultants
@@ -275,6 +287,7 @@ export default function Procedures() {
       const { error } = await supabase
         .from("procedures")
         .update(updateData)
+        .eq("clinic_id", clinic.id)
         .eq("id", id);
 
       if (error) throw error;
@@ -309,6 +322,7 @@ export default function Procedures() {
           special_instructions: procedureData.notes,
           consultant_id: procedureData.consultantId,
         })
+        .eq("clinic_id", clinic.id)
         .eq("id", procedureData.id);
 
       if (error) throw error;
@@ -339,6 +353,7 @@ export default function Procedures() {
       const { error } = await supabase
         .from("procedures")
         .delete()
+        .eq("clinic_id", clinic.id)
         .eq("id", id);
 
       if (error) throw error;

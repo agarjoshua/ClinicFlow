@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,11 +49,14 @@ interface ClinicalCase {
 export default function ClinicalCases() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { clinic } = useClinic();
 
   // Fetch clinical cases with patient and consultant info
   const { data: cases, isLoading } = useQuery({
-    queryKey: ["clinical-cases", statusFilter],
+    queryKey: ["clinical-cases", clinic?.id, statusFilter],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       let query = supabase
         .from("clinical_cases")
         .select(`
@@ -70,6 +74,7 @@ export default function ClinicalCases() {
             name
           )
         `)
+        .eq("clinic_id", clinic.id)
         .order("case_date", { ascending: false });
 
       if (statusFilter !== "all") {
@@ -80,6 +85,7 @@ export default function ClinicalCases() {
       if (error) throw error;
       return data as ClinicalCase[];
     },
+    enabled: !!clinic?.id,
   });
 
   // Filter cases by search term

@@ -49,12 +49,24 @@ export default function Patients() {
   const { data: patients = [], isLoading } = useQuery<PatientListItem[]>({
     queryKey: ["patients"],
     queryFn: async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) throw new Error("Not authenticated");
+      
+      const { data: userData } = await supabase
+        .from("users")
+        .select("clinic_id")
+        .eq("user_id", authData.user.id)
+        .single();
+      
+      if (!userData?.clinic_id) return [];
+      
       const { data, error } = await supabase
         .from("patients")
         .select(`
           *,
           currentHospital:hospitals(id, name, color)
         `)
+        .eq("clinic_id", userData.clinic_id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;

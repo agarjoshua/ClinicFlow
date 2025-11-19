@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,10 +69,13 @@ type SupabaseError = {
 
 export default function Inpatients() {
   const [, setLocation] = useLocation();
+  const { clinic } = useClinic();
 
   const { data, isLoading, error } = useQuery<QueryResponse, SupabaseError>({
-    queryKey: ["inpatients"],
+    queryKey: ["inpatients", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data: result, error: queryError } = await supabase
         .from("patients")
         .select(`
@@ -97,12 +101,14 @@ export default function Inpatients() {
             hospital:hospitals(id, name, color)
           )
         `)
+        .eq("clinic_id", clinic.id)
         .eq("is_inpatient", true)
         .order("inpatient_admitted_at", { ascending: false });
 
       if (queryError) throw queryError;
       return (result as unknown as RawInpatient[]) || [];
     },
+    enabled: !!clinic?.id,
   });
 
   const inpatients: InpatientRecord[] = useMemo(() => {

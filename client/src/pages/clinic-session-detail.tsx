@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,17 +41,29 @@ export default function ClinicSessionDetail() {
   const [match, params] = useRoute("/clinic-sessions/:id");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { clinic } = useClinic();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const sessionId = match ? params?.id : undefined;
 
   // Fetch clinic session - OPTIMIZED WITH SINGLE QUERY
   const { data: sessionData, isLoading, error } = useQuery({
-    queryKey: ["clinic-session-detail", sessionId],
+    queryKey: ["clinic-session-detail", sessionId, clinic?.id],
     queryFn: async () => {
-      if (!sessionId) {
-        throw new Error("No session ID provided");
+      if (!sessionId || !clinic?.id) {
+        throw new Error("No session ID or clinic provided");
       }
+
+      // First get clinic's hospital IDs for validation
+      const { data: hospitalData } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("clinic_id", clinic.id);
+      
+      if (!hospitalData || hospitalData.length === 0) {
+        throw new Error("No hospitals found for clinic");
+      }
+      const hospitalIds = hospitalData.map(h => h.id);
 
       // Single query with all joins - MUCH faster!
       const { data, error: queryError } = await supabase
@@ -65,6 +78,7 @@ export default function ClinicSessionDetail() {
           )
         `)
         .eq("id", sessionId)
+        .in("hospital_id", hospitalIds)
         .single();
 
       if (queryError || !data) {
@@ -73,7 +87,7 @@ export default function ClinicSessionDetail() {
 
       return data;
     },
-    enabled: !!sessionId,
+    enabled: !!sessionId && !!clinic?.id,
     retry: 1,
   });
 

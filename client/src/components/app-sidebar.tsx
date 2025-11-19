@@ -1,4 +1,4 @@
-import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble, UsersRound, CreditCard, Crown, Bell, Building2 } from "lucide-react";
+import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble, UsersRound, CreditCard, Crown, Bell, Building2, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -51,11 +51,6 @@ const consultantMenuItems = [
     title: "Reminders",
     url: "/reminders",
     icon: Bell,
-  },
-  {
-    title: "Team",
-    url: "/team",
-    icon: UsersRound,
   },
 ];
 
@@ -120,14 +115,14 @@ const assistantMenuItems = [
     url: "/reminders",
     icon: Bell,
   },
+];
+
+const settingsMenuItems = [
   {
     title: "Team",
     url: "/team",
     icon: UsersRound,
   },
-];
-
-const settingsMenuItems = [
   {
     title: "Organization",
     url: "/organization",
@@ -145,8 +140,35 @@ const settingsMenuItems = [
   },
 ];
 
+const superadminMenuItems = [
+  {
+    title: "SuperAdmin Portal",
+    url: "/superadmin",
+    icon: Crown,
+  },
+];
+
+const comingSoonItems = [
+  {
+    title: "NHIF Patient Integration",
+    description: "Link patients with NHIF records",
+  },
+  {
+    title: "Payment Integration",
+    description: "Accept M-Pesa(Mobile money) & card payments",
+  },
+  {
+    title: "CHV Referral Module",
+    description: "Community Health Volunteer referrals",
+  },
+  {
+    title: "MOH/KHIS Reporting",
+    description: "Auto-generate & upload reports",
+  },
+];
+
 interface AppSidebarProps {
-  userRole?: "consultant" | "assistant" | null;
+  userRole?: "consultant" | "assistant" | "superadmin" | null;
   userData?: any;
 }
 
@@ -175,12 +197,14 @@ export function AppSidebar({ userRole = null, userData }: AppSidebarProps) {
     <Sidebar>
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-            <Activity className="w-6 h-6 text-white" />
-          </div>
+          <img 
+            src="/zahaniflow.png" 
+            alt="ZahaniFlow" 
+            className="w-10 h-10 object-contain"
+          />
           <div className="flex flex-col">
             <span className="text-lg font-bold text-gray-900">
-              ClinicFlow
+              ZahaniFlow
             </span>
             <span className="text-xs text-gray-500 font-medium">
               {userRole === "consultant" ? "Neurosurgery Portal" : "Staff Portal"}
@@ -190,48 +214,98 @@ export function AppSidebar({ userRole = null, userData }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            {userRole === "consultant" ? "Clinical Management" : "Patient Management"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="w-5 h-5" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {userRole === "superadmin" ? (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-yellow-600">SuperAdmin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {superadminMenuItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === item.url}
+                      className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : (
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>
+                {userRole === "consultant" ? "Clinical Management" : "Patient Management"}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {menuItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url}
+                        data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="w-5 h-5" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>Settings</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {settingsMenuItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url}
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="w-5 h-5" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
 
         <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>Coming Soon</span>
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="w-5 h-5" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+            <div className="space-y-2 px-2">
+              {comingSoonItems.map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-md bg-muted/30 p-3 border border-muted"
+                >
+                  <div className="text-sm font-medium text-foreground mb-1">
+                    {item.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.description}
+                  </div>
+                </div>
               ))}
-            </SidebarMenu>
+            </div>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

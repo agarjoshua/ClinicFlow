@@ -8,6 +8,64 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useClinic, ClinicProvider } from "@/contexts/ClinicContext";
+import { Badge } from "@/components/ui/badge";
+import { Building2, Crown } from "lucide-react";
+
+// Header component with clinic details
+function Header({ userData, userRole }: { userData: any; userRole: string | null }) {
+  const { clinic } = useClinic();
+
+  const getTierBadgeVariant = (tier: string) => {
+    switch (tier?.toLowerCase()) {
+      case 'professional':
+        return 'default';
+      case 'enterprise':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
+
+  return (
+    <header className="flex items-center justify-between p-4 border-b bg-white">
+      <div className="flex items-center gap-4">
+        <SidebarTrigger data-testid="button-sidebar-toggle" />
+        {clinic && (
+          <div className="flex items-center gap-3 pl-3 border-l">
+            <div className="flex items-center justify-center w-10 h-10 bg-blue-50 rounded-lg">
+              <Building2 className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-gray-900">{clinic.name}</h2>
+                {clinic.subscriptionTier && (
+                  <Badge variant={getTierBadgeVariant(clinic.subscriptionTier)} className="text-xs">
+                    <Crown className="w-3 h-3 mr-1" />
+                    {clinic.subscriptionTier}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                {clinic.subscriptionStatus === 'active' ? (
+                  <span className="text-green-600">● Active</span>
+                ) : (
+                  <span className="text-amber-600">● {clinic.subscriptionStatus}</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-right">
+          <p className="text-sm font-semibold text-gray-900">{userData?.name}</p>
+          <p className="text-xs text-gray-500 capitalize">{userRole}</p>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 import AssistantDashboard from "@/pages/assistant-dashboard";
 import AssistantCalendar from "@/pages/assistant-calendar";
 import AuthPage from "@/pages/auth";
@@ -36,9 +94,10 @@ import SubscriptionPage from "@/pages/subscription";
 import BillingPage from "@/pages/billing";
 import OrganizationProfilePage from "@/pages/organization-profile";
 import RemindersPage from "@/pages/reminders";
+import SuperAdmin from "@/pages/superadmin";
 import NotFound from "@/pages/not-found";
 
-function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
+function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadmin" | null }) {
   const [location] = useLocation();
   
   // Redirect authenticated users from landing to dashboard
@@ -75,6 +134,7 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
       <Route path="/billing" component={BillingPage} />
       <Route path="/organization" component={OrganizationProfilePage} />
       <Route path="/reminders" component={RemindersPage} />
+      <Route path="/superadmin" component={SuperAdmin} />
       <Route path="/accept-invitation" component={AcceptInvitationPage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
@@ -91,7 +151,7 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { clinic, isLoading: isClinicLoading } = useClinic();
   const [session, setSession] = useState<any>(null);
-  const [userRole, setUserRole] = useState<"consultant" | "assistant" | null>(null);
+  const [userRole, setUserRole] = useState<"consultant" | "assistant" | "superadmin" | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -267,15 +327,7 @@ function AppContent() {
               <div className="flex h-screen w-full">
                 <AppSidebar userRole={userRole} userData={userData} />
                 <div className="flex flex-col flex-1 overflow-hidden">
-                  <header className="flex items-center justify-between p-4 border-b">
-                    <SidebarTrigger data-testid="button-sidebar-toggle" />
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">{userData?.name}</p>
-                        <p className="text-xs text-gray-500 capitalize">{userRole}</p>
-                      </div>
-                    </div>
-                  </header>
+                  <Header userData={userData} userRole={userRole} />
                   <main className="flex-1 overflow-auto p-6">
                     <div className="max-w-7xl mx-auto">
                       <Router userRole={userRole} />

@@ -136,8 +136,8 @@ export default function AuthPage() {
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center rounded-t-lg">
           <div className="flex items-center justify-center mb-3">
-            <div className="w-16 h-16 bg-white/10 rounded-xl flex items-center justify-center">
-              <span className="text-3xl">🏥</span>
+            <div className="w-16 h-16 bg-white/10 rounded-xl flex items-center justify-center p-2">
+              <img src="/zahaniflow.png" alt="ZahaniFlow" className="w-full h-full object-contain" />
             </div>
           </div>
           <CardTitle className="text-3xl font-bold">ZahaniFlow</CardTitle>

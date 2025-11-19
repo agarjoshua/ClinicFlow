@@ -97,8 +97,20 @@ export default function AssistantCalendar() {
 
   // Fetch ALL clinic sessions for this month (not filtered by consultant)
   const { data: clinicSessions = [], isLoading } = useQuery({
-    queryKey: ["allClinicSessions", format(monthStart, "yyyy-MM-dd")],
+    queryKey: ["allClinicSessions", format(monthStart, "yyyy-MM-dd"), clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
+      // First get clinic's hospital IDs
+      const { data: hospitalData } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("clinic_id", clinic.id);
+      
+      if (!hospitalData || hospitalData.length === 0) return [];
+      const hospitalIds = hospitalData.map(h => h.id);
+      
+      // Then filter sessions by those hospitals
       const { data, error } = await supabase
         .from("clinic_sessions")
         .select(`
@@ -116,6 +128,7 @@ export default function AssistantCalendar() {
             assigned_consultant:users!consultant_id(id, name)
           )
         `)
+        .in("hospital_id", hospitalIds)
         .gte("session_date", format(calendarStart, "yyyy-MM-dd"))
         .lte("session_date", format(calendarEnd, "yyyy-MM-dd"))
         .order("session_date", { ascending: true })
@@ -128,20 +141,25 @@ export default function AssistantCalendar() {
 
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Fetch unique hospitals for color legend
   const { data: hospitals = [] } = useQuery({
-    queryKey: ["hospitals"],
+    queryKey: ["hospitals", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
+      
       const { data, error } = await supabase
         .from("hospitals")
         .select("*")
+        .eq("clinic_id", clinic.id)
         .order("name");
       
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   const getSessionsForDay = (day: Date) => {
