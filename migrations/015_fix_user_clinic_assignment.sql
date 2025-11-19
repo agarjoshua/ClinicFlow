@@ -5,7 +5,7 @@ BEGIN;
 
 DO $$
 DECLARE
-  clinic_uuid uuid;
+  clinic_uuid uuid := 'e41fdf1e-0836-46a6-afad-81b1874d5df5'; -- Dr. Lee Ogutha's clinic
   users_count integer;
   patients_count integer;
   appointments_count integer;
@@ -14,15 +14,14 @@ DECLARE
   procedures_count integer;
   discharges_count integer;
   admissions_count integer;
+  reminders_count integer;
+  clinic_sessions_count integer;
+  post_op_plans_count integer;
+  post_op_updates_count integer;
 BEGIN
-  -- Get the Dr. Lee Ogutha clinic ID
-  SELECT id INTO clinic_uuid
-  FROM clinics 
-  WHERE slug = 'dr-lee-ogutha'
-  LIMIT 1;
-
-  IF clinic_uuid IS NULL THEN
-    RAISE EXCEPTION 'Dr. Lee Ogutha clinic not found. Please run migration 012 first.';
+  -- Verify the clinic exists
+  IF NOT EXISTS (SELECT 1 FROM clinics WHERE id = clinic_uuid) THEN
+    RAISE EXCEPTION 'Dr. Lee Ogutha clinic (%) not found.', clinic_uuid;
   END IF;
 
   -- Update ALL users without a clinic_id to this clinic
@@ -81,6 +80,27 @@ BEGIN
   
   GET DIAGNOSTICS admissions_count = ROW_COUNT;
 
+  -- Update ALL reminders without a clinic_id to this clinic (if table exists)
+  UPDATE reminders 
+  SET clinic_id = clinic_uuid 
+  WHERE clinic_id IS NULL;
+  
+  GET DIAGNOSTICS reminders_count = ROW_COUNT;
+
+  -- Update ALL post_op_plans without a clinic_id to this clinic (if table exists)
+  UPDATE post_op_plans 
+  SET clinic_id = clinic_uuid 
+  WHERE clinic_id IS NULL;
+  
+  GET DIAGNOSTICS post_op_plans_count = ROW_COUNT;
+
+  -- Update ALL post_op_updates without a clinic_id to this clinic (if table exists)
+  UPDATE post_op_updates 
+  SET clinic_id = clinic_uuid 
+  WHERE clinic_id IS NULL;
+  
+  GET DIAGNOSTICS post_op_updates_count = ROW_COUNT;
+
   -- Report results
   RAISE NOTICE 'Migration 015 completed:';
   RAISE NOTICE '  - Assigned % users to Dr. Lee Ogutha clinic', users_count;
@@ -91,6 +111,9 @@ BEGIN
   RAISE NOTICE '  - Assigned % procedures to Dr. Lee Ogutha clinic', procedures_count;
   RAISE NOTICE '  - Assigned % discharges to Dr. Lee Ogutha clinic', discharges_count;
   RAISE NOTICE '  - Assigned % patient admissions to Dr. Lee Ogutha clinic', admissions_count;
+  RAISE NOTICE '  - Assigned % reminders to Dr. Lee Ogutha clinic', reminders_count;
+  RAISE NOTICE '  - Assigned % post-op plans to Dr. Lee Ogutha clinic', post_op_plans_count;
+  RAISE NOTICE '  - Assigned % post-op updates to Dr. Lee Ogutha clinic', post_op_updates_count;
 END $$;
 
 COMMIT;

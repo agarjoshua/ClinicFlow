@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,7 @@ export default function Diagnoses() {
   const [oxygenSaturation, setOxygenSaturation] = useState("");
   
   const { toast } = useToast();
+  const { clinic } = useClinic();
 
   // Fetch confirmed appointments (ready for diagnosis)
   const { data: appointments = [], isLoading } = useQuery({
@@ -216,6 +218,7 @@ export default function Diagnoses() {
       const { data: clinicalCase, error: caseError } = await supabase
         .from("clinical_cases")
         .insert({
+          clinic_id: diagnosis.clinicId,
           patient_id: patientId,
           appointment_id: appointmentId,
           consultant_id: userData.id,
@@ -408,6 +411,7 @@ export default function Diagnoses() {
       appointmentId: selectedAppointment.id,
       patientId: selectedAppointment.patient.id,
       diagnosis: {
+        clinicId: clinic?.id,
         symptoms,
         diagnosisNotes,
         neurologicalExam,

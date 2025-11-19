@@ -34,7 +34,7 @@ export default function TeamManagementPage() {
 
       const { data, error } = await supabase
         .from("users")
-        .select("user_id, full_name, email, role, clinic_id")
+        .select("user_id, name, email, role, clinic_id")
         .eq("clinic_id", clinic.id);
 
       if (error || !data) {
@@ -44,7 +44,7 @@ export default function TeamManagementPage() {
 
       return data.map((row) => ({
         id: row.user_id,
-        fullName: row.full_name,
+        fullName: row.name,
         email: row.email,
         role: row.role,
       }));

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,7 @@ export default function Procedures() {
   const [doctorSearchOpen, setDoctorSearchOpen] = useState(false);
   
   const { toast } = useToast();
+  const { clinic } = useClinic();
 
   // Fetch procedures by status
   const { data: procedures = [], isLoading } = useQuery({
@@ -218,9 +220,10 @@ export default function Procedures() {
   const scheduleProcedureMutation = useMutation({
     mutationFn: async (procedureData: any) => {
       // Create the procedure
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from("procedures")
         .insert({
+          clinic_id: procedureData.clinicId,
           clinical_case_id: procedureData.clinicalCaseId,
           patient_id: procedureData.patientId,
           hospital_id: procedureData.hospitalId,
@@ -417,6 +420,7 @@ export default function Procedures() {
     } else if (!editMode && selectedCase) {
       // Create new procedure
       scheduleProcedureMutation.mutate({
+        clinicId: clinic?.id,
         clinicalCaseId: selectedCase.id,
         patientId: selectedCase.patient.id,
         hospitalId: hospitals[0]?.id,

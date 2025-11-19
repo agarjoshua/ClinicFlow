@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import { queryClient } from "@/lib/queryClient";
 export default function AppointmentForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { clinic } = useClinic();
 
   const [selectedHospital, setSelectedHospital] = useState<string>("");
   const [selectedSession, setSelectedSession] = useState<string>("");
@@ -156,6 +158,7 @@ export default function AppointmentForm() {
         .from("appointments")
         .insert([
           {
+            clinic_id: appointmentData.clinicId,
             clinic_session_id: appointmentData.sessionId,
             patient_id: appointmentData.patientId,
             consultant_id: appointmentData.consultantId, // NEW: Assign to doctor
@@ -204,6 +207,7 @@ export default function AppointmentForm() {
     }
 
     createAppointment.mutate({
+      clinicId: clinic?.id,
       sessionId: selectedSession,
       patientId: selectedPatient,
       consultantId: selectedConsultant,

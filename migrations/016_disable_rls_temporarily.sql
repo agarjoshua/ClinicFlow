@@ -4,7 +4,8 @@
 
 BEGIN;
 
--- Disable RLS on all tables to allow full data access
+-- Disable RLS on data tables to allow full data access during development
+-- These tables will have proper RLS re-enabled in migration 018
 ALTER TABLE patients DISABLE ROW LEVEL SECURITY;
 ALTER TABLE patient_admissions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE appointments DISABLE ROW LEVEL SECURITY;
@@ -14,6 +15,10 @@ ALTER TABLE procedures DISABLE ROW LEVEL SECURITY;
 ALTER TABLE discharges DISABLE ROW LEVEL SECURITY;
 ALTER TABLE post_op_plans DISABLE ROW LEVEL SECURITY;
 ALTER TABLE post_op_updates DISABLE ROW LEVEL SECURITY;
+ALTER TABLE reminders DISABLE ROW LEVEL SECURITY;
+ALTER TABLE clinic_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE medical_images DISABLE ROW LEVEL SECURITY;
+ALTER TABLE clinical_investigations DISABLE ROW LEVEL SECURITY;
 
 -- Keep RLS enabled on these security-critical tables
 -- ALTER TABLE clinics DISABLE ROW LEVEL SECURITY;
