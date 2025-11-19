@@ -45,25 +45,30 @@ type Step = "clinic" | "user" | "review";
 
 const subscriptionTiers = [
   {
-    value: "trial",
-    label: "Trial",
-    price: 0,
-    features: ["1 Consultant", "2 Assistants", "Basic Features", "7-day Trial"],
+    value: "starter",
+    label: "Starter",
+    price: 5000,
+    currency: "KES",
+    features: ["1 Consultant", "2 Assistants", "Basic Features", "Email Support"],
     popular: false,
   },
   {
-    value: "premium",
-    label: "Premium",
-    price: 99,
-    features: ["5 Consultants", "10 Assistants", "Advanced Features", "Priority Support"],
+    value: "professional",
+    label: "Professional",
+    price: 15000,
+    currency: "KES",
+    features: ["5 Consultants", "10 Assistants", "Advanced Features", "Priority Support", "Analytics"],
     popular: true,
   },
   {
     value: "enterprise",
     label: "Enterprise",
-    price: 299,
-    features: ["Unlimited Users", "All Features", "24/7 Support", "Custom Integration"],
+    price: null,
+    currency: "KES",
+    priceLabel: "Custom",
+    features: ["Unlimited Users", "Custom Features", "Dedicated Support", "Advanced Analytics", "API Access"],
     popular: false,
+    contactSales: true,
   },
 ];
 
@@ -76,7 +81,7 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
   const [clinicData, setClinicData] = useState({
     name: "",
     slug: "",
-    subscription_tier: "trial",
+    subscription_tier: "starter",
     subscription_status: "active",
     max_consultants: 1,
     max_assistants: 2,
@@ -104,8 +109,8 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
   // Update limits based on tier
   const handleTierChange = (tier: string) => {
     const limits = {
-      trial: { consultants: 1, assistants: 2 },
-      premium: { consultants: 5, assistants: 10 },
+      starter: { consultants: 1, assistants: 2 },
+      professional: { consultants: 5, assistants: 10 },
       enterprise: { consultants: 999, assistants: 999 },
     };
     
@@ -122,12 +127,46 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
     mutationFn: async () => {
       setIsSubmitting(true);
 
-      // Step 1: Create clinic
+      // Step 1: Create auth user first
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (authError || !authData.user) {
+        throw new Error(`User creation failed: ${authError?.message || 'Unknown error'}`);
+      }
+
+      // Step 2: Create user profile (this needs to happen before clinic for owner_id)
+      const { data: userProfile, error: userProfileError } = await supabase
+        .from("users")
+        .insert([{
+          user_id: authData.user.id,
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone || null,
+          role: userData.role,
+          clinic_id: null, // Will be updated after clinic creation
+        }])
+        .select()
+        .single();
+
+      if (userProfileError || !userProfile) {
+        // Rollback: delete auth user
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw new Error(`User profile creation failed: ${userProfileError?.message}`);
+      }
+
+      // Step 3: Create clinic with the user's profile as owner
       const { data: clinicResult, error: clinicError } = await supabase
         .from("clinics")
         .insert([{
           name: clinicData.name,
           slug: clinicData.slug,
+          owner_id: userProfile.id,
           subscription_tier: clinicData.subscription_tier,
           subscription_status: clinicData.subscription_status,
           max_consultants: clinicData.max_consultants,
@@ -140,38 +179,25 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
         .select()
         .single();
 
-      if (clinicError) throw new Error(`Clinic creation failed: ${clinicError.message}`);
-
-      // Step 2: Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: userData.email,
-        password: userData.password,
-        email_confirm: true,
-      });
-
-      if (authError) {
-        // Rollback: delete clinic if user creation fails
-        await supabase.from("clinics").delete().eq("id", clinicResult.id);
-        throw new Error(`User creation failed: ${authError.message}`);
+      if (clinicError) {
+        // Rollback: delete user profile and auth user
+        await supabase.from("users").delete().eq("id", userProfile.id);
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw new Error(`Clinic creation failed: ${clinicError.message}`);
       }
 
-      // Step 3: Create user profile
-      const { error: userError } = await supabase
+      // Step 4: Update user profile with clinic_id
+      const { error: updateError } = await supabase
         .from("users")
-        .insert([{
-          user_id: authData.user.id,
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone || null,
-          role: userData.role,
-          clinic_id: clinicResult.id,
-        }]);
+        .update({ clinic_id: clinicResult.id })
+        .eq("id", userProfile.id);
 
-      if (userError) {
-        // Rollback: delete clinic and auth user
+      if (updateError) {
+        // Rollback: delete everything
         await supabase.from("clinics").delete().eq("id", clinicResult.id);
+        await supabase.from("users").delete().eq("id", userProfile.id);
         await supabase.auth.admin.deleteUser(authData.user.id);
-        throw new Error(`User profile creation failed: ${userError.message}`);
+        throw new Error(`Clinic assignment failed: ${updateError.message}`);
       }
 
       return { clinic: clinicResult, user: authData.user };
@@ -411,8 +437,8 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
                           clinicData.subscription_tier === tier.value
                             ? "ring-2 ring-primary shadow-lg"
                             : "opacity-75 hover:opacity-100"
-                        }`}
-                        onClick={() => handleTierChange(tier.value)}
+                        } ${tier.contactSales ? 'opacity-100' : ''}`}
+                        onClick={() => !tier.contactSales && handleTierChange(tier.value)}
                       >
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between">
@@ -422,8 +448,14 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
                             )}
                           </div>
                           <div className="flex items-baseline gap-1">
-                            <span className="text-3xl font-bold">${tier.price}</span>
-                            <span className="text-sm text-muted-foreground">/month</span>
+                            {tier.priceLabel ? (
+                              <span className="text-3xl font-bold">{tier.priceLabel}</span>
+                            ) : (
+                              <>
+                                <span className="text-3xl font-bold">{tier.currency} {tier.price?.toLocaleString()}</span>
+                                <span className="text-sm text-muted-foreground">/month</span>
+                              </>
+                            )}
                           </div>
                         </CardHeader>
                         <CardContent>
@@ -435,6 +467,19 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
                               </li>
                             ))}
                           </ul>
+                          {tier.contactSales && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full mt-4"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = 'mailto:tech@zahaniflow.com?subject=Enterprise Plan Inquiry';
+                              }}
+                            >
+                              Contact Sales
+                            </Button>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -564,7 +609,7 @@ export function ClinicSignupWizard({ open, onOpenChange }: ClinicSignupWizardPro
                       <div>
                         <p className="text-muted-foreground">Subscription</p>
                         <Badge variant="secondary" className="mt-1">
-                          {selectedTier?.label} (${selectedTier?.price}/mo)
+                          {selectedTier?.label} ({selectedTier?.priceLabel || `${selectedTier?.currency} ${selectedTier?.price?.toLocaleString()}/mo`})
                         </Badge>
                       </div>
                       <div>

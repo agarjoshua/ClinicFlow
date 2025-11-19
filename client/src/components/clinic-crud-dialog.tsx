@@ -35,7 +35,7 @@ export function ClinicCrudDialog({ open, onOpenChange, clinic, mode }: ClinicCru
   const [formData, setFormData] = useState({
     name: clinic?.name || "",
     slug: clinic?.slug || "",
-    subscription_tier: clinic?.subscription_tier || "trial",
+    subscription_tier: clinic?.subscription_tier || "starter",
     subscription_status: clinic?.subscription_status || "active",
     max_consultants: clinic?.max_consultants || 1,
     max_assistants: clinic?.max_assistants || 2,
@@ -105,7 +105,7 @@ export function ClinicCrudDialog({ open, onOpenChange, clinic, mode }: ClinicCru
     setFormData({
       name: "",
       slug: "",
-      subscription_tier: "trial",
+      subscription_tier: "starter",
       subscription_status: "active",
       max_consultants: 1,
       max_assistants: 2,
@@ -182,9 +182,9 @@ export function ClinicCrudDialog({ open, onOpenChange, clinic, mode }: ClinicCru
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="trial">Trial ($0/mo)</SelectItem>
-                    <SelectItem value="premium">Premium ($99/mo)</SelectItem>
-                    <SelectItem value="enterprise">Enterprise ($299/mo)</SelectItem>
+                    <SelectItem value="starter">Starter (KES 5,000/mo)</SelectItem>
+                    <SelectItem value="professional">Professional (KES 15,000/mo)</SelectItem>
+                    <SelectItem value="enterprise">Enterprise (Custom)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

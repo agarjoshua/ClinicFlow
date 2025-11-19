@@ -158,7 +158,7 @@ export default function SuperAdmin() {
           return {
             id: clinic.id,
             name: clinic.name,
-            tier: clinic.subscription_tier || "trial",
+            tier: clinic.subscription_tier || "starter",
             status: clinic.subscription_status || "active",
             userCount: userCount || 0,
             patientCount: patientCount || 0,
@@ -325,9 +325,10 @@ export default function SuperAdmin() {
   const totalClinics = clinics.length;
   const activeClinics = clinics.filter(c => c.subscription_status === "active").length;
   const totalRevenue = clinics.reduce((sum, c) => {
-    const tier = c.subscription_tier || "trial";
-    if (tier === "premium") return sum + 99;
-    if (tier === "enterprise") return sum + 299;
+    const tier = c.subscription_tier || "starter";
+    if (tier === "professional") return sum + 15000;
+    if (tier === "enterprise") return sum + 0; // Custom pricing
+    if (tier === "starter") return sum + 5000;
     return sum;
   }, 0);
   const totalUsers = clinicStats.reduce((sum, c) => sum + c.userCount, 0);
@@ -335,7 +336,7 @@ export default function SuperAdmin() {
 
   // Subscription tier distribution
   const tierDistribution = clinics.reduce((acc, clinic) => {
-    const tier = clinic.subscription_tier || "trial";
+    const tier = clinic.subscription_tier || "starter";
     acc[tier] = (acc[tier] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -593,30 +594,30 @@ export default function SuperAdmin() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Trial</CardTitle>
-                <CardDescription>Free tier</CardDescription>
+                <CardTitle>Starter</CardTitle>
+                <CardDescription>KES 5,000/month</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {tierDistribution["trial"] || 0}
+                  {tierDistribution["starter"] || 0}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Active trial accounts
+                  KES {((tierDistribution["starter"] || 0) * 5000).toLocaleString()}/mo revenue
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Premium</CardTitle>
-                <CardDescription>$99/month</CardDescription>
+                <CardTitle>Professional</CardTitle>
+                <CardDescription>KES 15,000/month</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {tierDistribution["premium"] || 0}
+                  {tierDistribution["professional"] || 0}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  ${(tierDistribution["premium"] || 0) * 99}/mo revenue
+                  KES {((tierDistribution["professional"] || 0) * 15000).toLocaleString()}/mo revenue
                 </p>
               </CardContent>
             </Card>
@@ -624,14 +625,14 @@ export default function SuperAdmin() {
             <Card>
               <CardHeader>
                 <CardTitle>Enterprise</CardTitle>
-                <CardDescription>$299/month</CardDescription>
+                <CardDescription>Custom pricing</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
                   {tierDistribution["enterprise"] || 0}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  ${(tierDistribution["enterprise"] || 0) * 299}/mo revenue
+                  Contact <a href="mailto:tech@zahaniflow.com" className="text-blue-600 hover:underline">tech@zahaniflow.com</a>
                 </p>
               </CardContent>
             </Card>
@@ -658,8 +659,8 @@ export default function SuperAdmin() {
                 </TableHeader>
                 <TableBody>
                   {clinics.map((clinic) => {
-                    const tier = clinic.subscription_tier || "trial";
-                    const revenue = tier === "premium" ? 99 : tier === "enterprise" ? 299 : 0;
+                    const tier = clinic.subscription_tier || "starter";
+                    const revenue = tier === "professional" ? 15000 : tier === "enterprise" ? 0 : tier === "starter" ? 5000 : 0;
                     return (
                       <TableRow key={clinic.id}>
                         <TableCell className="font-medium">{clinic.name}</TableCell>
@@ -674,7 +675,7 @@ export default function SuperAdmin() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-bold">
-                          ${revenue}
+                          {tier === "enterprise" ? "Custom" : `KES ${revenue.toLocaleString()}`}
                         </TableCell>
                         <TableCell>
                           {format(new Date(new Date().setMonth(new Date().getMonth() + 1)), "MMM d, yyyy")}

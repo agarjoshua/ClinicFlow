@@ -48,6 +48,43 @@ export default function AuthPage() {
         </CardHeader>
 
         <CardContent className="p-6">
+          {/* Demo Account Banner */}
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-green-900 mb-2">Try Demo Account</h3>
+                <p className="text-sm text-green-800 mb-3">
+                  Test the platform with pre-loaded data before signing up!
+                </p>
+                <div className="bg-white rounded-md p-3 space-y-2 border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Email:</span>
+                    <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">demo.consultant@zahaniflow.com</code>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Password:</span>
+                    <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">DemoConsultant2025!</code>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("demo.consultant@zahaniflow.com");
+                    setPassword("DemoConsultant2025!");
+                  }}
+                  className="mt-3 text-sm text-green-700 hover:text-green-800 font-medium hover:underline"
+                >
+                  → Use demo credentials
+                </button>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -135,7 +172,7 @@ export default function AuthPage() {
       <p className="mt-6 text-xs text-center text-gray-500 max-w-md">
         By creating a clinic, you agree to our Terms of Service and Privacy Policy.
         <br />
-        Your 7-day free trial starts automatically.
+        Need help? Contact us at <a href="mailto:tech@zahaniflow.com" className="text-blue-600 hover:underline">tech@zahaniflow.com</a>
       </p>
 
       {/* Clinic Signup Wizard */}
