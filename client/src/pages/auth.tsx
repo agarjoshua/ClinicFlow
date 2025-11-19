@@ -16,8 +16,14 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"consultant" | "assistant">("assistant");
+  const [role, setRole] = useState<"consultant" | "assistant">("consultant");
   const [phone, setPhone] = useState("");
+  
+  // Organization details
+  const [clinicName, setClinicName] = useState("");
+  const [clinicAddress, setClinicAddress] = useState("");
+  const [clinicPhone, setClinicPhone] = useState("");
+  
   const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,7 +41,7 @@ export default function AuthPage() {
         if (error) {
           setError(error.message);
         } else {
-          setLocation("/");
+          setLocation("/dashboard");
         }
       } else {
         // Sign up new user
@@ -47,31 +53,74 @@ export default function AuthPage() {
         if (signUpError) {
           setError(signUpError.message);
         } else if (data?.user) {
-          // Create user profile immediately
+          // Create organization/clinic first
           try {
-            const { error: insertError } = await supabase
+            // First create the user profile
+            const { data: userProfile, error: userInsertError } = await supabase
               .from("users")
-              .insert([
-                {
-                  user_id: data.user.id,
-                  name: name,
-                  email: email,
-                  role: role,
-                  phone: phone || null,
-                },
-              ]);
+              .insert({
+                user_id: data.user.id,
+                name: name,
+                email: email,
+                role: role,
+                phone: phone || null,
+              })
+              .select()
+              .single();
               
-            if (insertError) {
-              console.error("User profile creation error:", insertError);
-              setError("Account created but profile setup failed: " + insertError.message);
+            if (userInsertError || !userProfile) {
+              console.error("User profile creation error:", userInsertError);
+              setError("Account created but profile setup failed: " + userInsertError?.message);
+              return;
+            }
+            
+            // Generate clinic slug from name
+            const slug = clinicName
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/(^-|-$)/g, '');
+            
+            // Create clinic with user's database ID as owner
+            const { data: clinicData, error: clinicError } = await supabase
+              .from("clinics")
+              .insert({
+                name: clinicName,
+                slug: slug,
+                owner_id: userProfile.id, // Use database user ID, not auth ID
+                subscription_tier: 'trial',
+                subscription_status: 'active',
+                settings: {
+                  address: clinicAddress || null,
+                  phone: clinicPhone || null,
+                  email: email,
+                }
+              })
+              .select()
+              .single();
+            
+            if (clinicError) {
+              console.error("Clinic creation error:", clinicError);
+              setError("Account created but clinic setup failed: " + clinicError.message);
+              return;
+            }
+            
+            // Update user profile with clinic_id
+            const { error: updateError } = await supabase
+              .from("users")
+              .update({ clinic_id: clinicData.id })
+              .eq("id", userProfile.id);
+              
+            if (updateError) {
+              console.error("User clinic assignment error:", updateError);
+              setError("Account created but clinic assignment failed: " + updateError.message);
               return;
             }
             
             // Auto login after signup
-            setLocation("/");
+            setLocation("/dashboard");
           } catch (err: any) {
-            console.error("Profile creation error:", err);
-            setError("Account created but profile setup failed: " + err.message);
+            console.error("Setup error:", err);
+            setError("Account created but setup failed: " + err.message);
           }
         }
       }
@@ -91,8 +140,8 @@ export default function AuthPage() {
               <span className="text-3xl">🏥</span>
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold">ClinicFlow</CardTitle>
-          <p className="text-blue-100 mt-2">Neurosurgery Clinic Management</p>
+          <CardTitle className="text-3xl font-bold">ZahaniFlow</CardTitle>
+          <p className="text-blue-100 mt-2">Modern Healthcare Management</p>
         </CardHeader>
 
         <CardContent className="p-6">
@@ -116,6 +165,55 @@ export default function AuthPage() {
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
               <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">Organization Details</h3>
+                  <p className="text-xs text-blue-700">Set up your clinic/practice information</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Clinic/Practice Name *
+                  </label>
+                  <Input
+                    type="text"
+                    value={clinicName}
+                    onChange={(e) => setClinicName(e.target.value)}
+                    required={!isLogin}
+                    placeholder="Dr. Smith Neurosurgery Clinic"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Clinic Address (Optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={clinicAddress}
+                    onChange={(e) => setClinicAddress(e.target.value)}
+                    placeholder="123 Medical Plaza, Suite 100"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Clinic Phone (Optional)
+                  </label>
+                  <Input
+                    type="tel"
+                    value={clinicPhone}
+                    onChange={(e) => setClinicPhone(e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Your Account</h3>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Full Name *
@@ -157,13 +255,13 @@ export default function AuthPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone (Optional)
+                    Your Phone (Optional)
                   </label>
                   <Input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+1 (555) 123-4567"
+                    placeholder="+1 (555) 987-6543"
                     className="w-full"
                   />
                 </div>

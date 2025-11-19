@@ -244,6 +244,16 @@
  * need to be distinguished from eachother visually.
  */
 @layer utilities {
+  /* Smooth transitions for interactive elements */
+  * {
+    transition-property: color, background-color, border-color, transform, opacity, box-shadow;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  button, a, [role="button"] {
+    transition-duration: 150ms;
+  }
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type="search"]::-webkit-search-cancel-button {

@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabaseClient";
 const consultantMenuItems = [
   {
     title: "Calendar",
-    url: "/calendar",
+    url: "/dashboard",
     icon: Calendar,
   },
   {
@@ -62,7 +62,7 @@ const consultantMenuItems = [
 const assistantMenuItems = [
   {
     title: "Dashboard",
-    url: "/",
+    url: "/dashboard",
     icon: Home,
   },
   {

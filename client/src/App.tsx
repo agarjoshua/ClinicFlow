@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { queryClient } from "./lib/queryClient";
@@ -11,6 +11,7 @@ import { useClinic, ClinicProvider } from "@/contexts/ClinicContext";
 import AssistantDashboard from "@/pages/assistant-dashboard";
 import AssistantCalendar from "@/pages/assistant-calendar";
 import AuthPage from "@/pages/auth";
+import LandingPage from "@/pages/landing";
 import Patients from "@/pages/patients";
 import PatientForm from "@/pages/patient-form";
 import PatientDetail from "@/pages/patient-detail";
@@ -38,9 +39,17 @@ import RemindersPage from "@/pages/reminders";
 import NotFound from "@/pages/not-found";
 
 function Router({ userRole }: { userRole: "consultant" | "assistant" | null }) {
+  const [location] = useLocation();
+  
+  // Redirect authenticated users from landing to dashboard
+  if (userRole && location === "/") {
+    return <Redirect to="/dashboard" />;
+  }
+  
   return (
     <Switch>
-      <Route path="/">
+      <Route path="/" component={LandingPage} />
+      <Route path="/dashboard">
         {userRole === "consultant" ? <ConsultantCalendar /> : <AssistantDashboard />}
       </Route>
       <Route path="/calendar" component={AssistantCalendar} />
@@ -96,15 +105,41 @@ function AppContent() {
           .select()
           .eq("user_id", session.user.id)
           .single()
-          .then(({ data, error }) => {
+          .then(async ({ data, error }) => {
             if (data) {
               setUserRole(data.role);
               setUserData(data);
+              setIsLoading(false);
             } else if (error) {
               console.error("Error fetching user profile:", error);
-              // Profile doesn't exist yet - this can happen right after signup
+              
+              // Auto-create profile for existing auth users without profiles
+              if (error.code === 'PGRST116') { // No rows returned
+                console.log("No user profile found, creating one...");
+                try {
+                  const { data: newProfile, error: createError } = await supabase
+                    .from("users")
+                    .insert({
+                      user_id: session.user.id,
+                      email: session.user.email || '',
+                      name: session.user.email?.split('@')[0] || 'User',
+                      role: 'consultant', // Default to consultant
+                    })
+                    .select()
+                    .single();
+                  
+                  if (createError) {
+                    console.error("Failed to auto-create profile:", createError);
+                  } else if (newProfile) {
+                    setUserRole(newProfile.role);
+                    setUserData(newProfile);
+                  }
+                } catch (err) {
+                  console.error("Error auto-creating profile:", err);
+                }
+              }
+              setIsLoading(false);
             }
-            setIsLoading(false);
           });
       } else {
         setIsLoading(false);
@@ -119,14 +154,41 @@ function AppContent() {
           .select()
           .eq("user_id", session.user.id)
           .single()
-          .then(({ data, error }) => {
+          .then(async ({ data, error }) => {
             if (data) {
               setUserRole(data.role);
               setUserData(data);
+              setIsLoading(false);
             } else if (error) {
               console.error("Error fetching user profile:", error);
+              
+              // Auto-create profile for existing auth users without profiles
+              if (error.code === 'PGRST116') { // No rows returned
+                console.log("No user profile found, creating one...");
+                try {
+                  const { data: newProfile, error: createError } = await supabase
+                    .from("users")
+                    .insert({
+                      user_id: session.user.id,
+                      email: session.user.email || '',
+                      name: session.user.email?.split('@')[0] || 'User',
+                      role: 'consultant', // Default to consultant
+                    })
+                    .select()
+                    .single();
+                  
+                  if (createError) {
+                    console.error("Failed to auto-create profile:", createError);
+                  } else if (newProfile) {
+                    setUserRole(newProfile.role);
+                    setUserData(newProfile);
+                  }
+                } catch (err) {
+                  console.error("Error auto-creating profile:", err);
+                }
+              }
+              setIsLoading(false);
             }
-            setIsLoading(false);
           });
       } else {
         setUserRole(null);
@@ -155,7 +217,7 @@ function AppContent() {
             <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-gray-900">ClinicFlow</h2>
+            <h2 className="text-xl font-semibold text-gray-900">ZahaniFlow</h2>
             <p className="text-sm text-gray-600">Loading your workspace...</p>
           </div>
         </div>

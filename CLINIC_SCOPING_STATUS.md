@@ -11,6 +11,15 @@ Multi-tenancy infrastructure exists but has been **DISABLED** to allow developme
 - ✅ **Migration 014**: Added reminders table with clinic_id
 - ⏳ **Migration 015**: Ready to assign ALL data to Dr. Lee clinic (NOT YET RUN)
 - ⏳ **Migration 016**: Ready to disable RLS temporarily (NOT YET RUN)
+- ✅ **Migration 017**: Allow clinic creation during signup (RLS policies)
+
+## Organization Setup Flow
+✅ **NEW**: Organization details are now captured during sign-up:
+- Users provide clinic name, address, phone during registration
+- Clinic is created automatically with the user as owner
+- User profile is linked to clinic immediately
+- No separate onboarding step needed
+- Role defaults to "consultant" (can be changed during signup)
 
 ---
 
