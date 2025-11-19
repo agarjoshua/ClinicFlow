@@ -75,6 +75,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { ClinicCrudDialog } from "@/components/clinic-crud-dialog";
+import { ClinicSignupWizard } from "@/components/clinic-signup-wizard";
 import { SubscriptionCrudDialog } from "@/components/subscription-crud-dialog";
 import { FeatureAnalyticsManager } from "@/components/feature-analytics-manager";
 
@@ -104,6 +105,7 @@ export default function SuperAdmin() {
   const [selectedClinic, setSelectedClinic] = useState("all");
   
   // Dialog states
+  const [clinicWizardOpen, setClinicWizardOpen] = useState(false);
   const [clinicDialogOpen, setClinicDialogOpen] = useState(false);
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -478,103 +480,6 @@ export default function SuperAdmin() {
           />
         </TabsContent>
 
-        {/* Old Analytics Content - Removed */}
-        <TabsContent value="analytics-old" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Feature Usage Bar Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Feature Usage (Last {selectedPeriod} Days)</CardTitle>
-                <CardDescription>
-                  Number of times each feature was used
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={featureUsage}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="feature" angle={-45} textAnchor="end" height={100} />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Subscription Tier Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Subscription Distribution</CardTitle>
-                <CardDescription>
-                  Breakdown by tier
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={tierData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {tierData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Feature Usage Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Detailed Feature Usage</CardTitle>
-              <CardDescription>
-                Most used features across the platform
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Feature</TableHead>
-                    <TableHead className="text-right">Usage Count</TableHead>
-                    <TableHead>Last Used</TableHead>
-                    <TableHead className="text-right">% of Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {featureUsage.map((feature, index) => {
-                    const total = featureUsage.reduce((sum, f) => sum + f.count, 0);
-                    const percentage = total > 0 ? (feature.count / total * 100).toFixed(1) : "0";
-                    return (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{feature.feature}</TableCell>
-                        <TableCell className="text-right font-bold">{feature.count}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {feature.lastUsed === "Never" 
-                            ? "Never" 
-                            : format(new Date(feature.lastUsed), "MMM d, yyyy HH:mm")}
-                        </TableCell>
-                        <TableCell className="text-right">{percentage}%</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Clinic Management Tab */}
         <TabsContent value="clinics" className="space-y-4">
           <Card>
@@ -587,14 +492,11 @@ export default function SuperAdmin() {
                   </CardDescription>
                 </div>
                 <Button
-                  onClick={() => {
-                    setClinicDialogMode("create");
-                    setSelectedClinicForEdit(null);
-                    setClinicDialogOpen(true);
-                  }}
+                  onClick={() => setClinicWizardOpen(true)}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Clinic
+                  Create New Clinic
                 </Button>
               </div>
             </CardHeader>
@@ -751,6 +653,7 @@ export default function SuperAdmin() {
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Monthly Revenue</TableHead>
                     <TableHead>Next Billing</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -776,6 +679,19 @@ export default function SuperAdmin() {
                         <TableCell>
                           {format(new Date(new Date().setMonth(new Date().getMonth() + 1)), "MMM d, yyyy")}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedClinicForEdit(clinic);
+                              setSubscriptionDialogOpen(true);
+                            }}
+                          >
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Manage
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -785,6 +701,53 @@ export default function SuperAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <ClinicSignupWizard
+        open={clinicWizardOpen}
+        onOpenChange={setClinicWizardOpen}
+      />
+
+      <ClinicCrudDialog
+        open={clinicDialogOpen}
+        onOpenChange={setClinicDialogOpen}
+        clinic={selectedClinicForEdit}
+        mode={clinicDialogMode}
+      />
+
+      <SubscriptionCrudDialog
+        open={subscriptionDialogOpen}
+        onOpenChange={setSubscriptionDialogOpen}
+        clinic={selectedClinicForEdit}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the clinic
+              <span className="font-bold"> {selectedClinicForEdit?.name}</span> and remove all
+              associated data including users, patients, and appointments.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedClinicForEdit(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedClinicForEdit) {
+                  deleteClinicMutation.mutate(selectedClinicForEdit.id);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Clinic
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

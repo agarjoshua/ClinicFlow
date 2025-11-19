@@ -3,126 +3,29 @@ import { supabase } from "@/lib/supabaseClient";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClinicSignupWizard } from "@/components/clinic-signup-wizard";
+import { Sparkles } from "lucide-react";
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<"consultant" | "assistant">("consultant");
-  const [phone, setPhone] = useState("");
-  
-  // Organization details
-  const [clinicName, setClinicName] = useState("");
-  const [clinicAddress, setClinicAddress] = useState("");
-  const [clinicPhone, setClinicPhone] = useState("");
-  
-  const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [, setLocation] = useLocation();
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      if (isLogin) {
-        // Login existing user
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          setError(error.message);
-        } else {
-          setLocation("/dashboard");
-        }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(error.message);
       } else {
-        // Sign up new user
-        const { data, error: signUpError } = await supabase.auth.signUp({ 
-          email, 
-          password,
-        });
-        
-        if (signUpError) {
-          setError(signUpError.message);
-        } else if (data?.user) {
-          // Create organization/clinic first
-          try {
-            // First create the user profile
-            const { data: userProfile, error: userInsertError } = await supabase
-              .from("users")
-              .insert({
-                user_id: data.user.id,
-                name: name,
-                email: email,
-                role: role,
-                phone: phone || null,
-              })
-              .select()
-              .single();
-              
-            if (userInsertError || !userProfile) {
-              console.error("User profile creation error:", userInsertError);
-              setError("Account created but profile setup failed: " + userInsertError?.message);
-              return;
-            }
-            
-            // Generate clinic slug from name
-            const slug = clinicName
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/(^-|-$)/g, '');
-            
-            // Create clinic with user's database ID as owner
-            const { data: clinicData, error: clinicError } = await supabase
-              .from("clinics")
-              .insert({
-                name: clinicName,
-                slug: slug,
-                owner_id: userProfile.id, // Use database user ID, not auth ID
-                subscription_tier: 'trial',
-                subscription_status: 'active',
-                settings: {
-                  address: clinicAddress || null,
-                  phone: clinicPhone || null,
-                  email: email,
-                }
-              })
-              .select()
-              .single();
-            
-            if (clinicError) {
-              console.error("Clinic creation error:", clinicError);
-              setError("Account created but clinic setup failed: " + clinicError.message);
-              return;
-            }
-            
-            // Update user profile with clinic_id
-            const { error: updateError } = await supabase
-              .from("users")
-              .update({ clinic_id: clinicData.id })
-              .eq("id", userProfile.id);
-              
-            if (updateError) {
-              console.error("User clinic assignment error:", updateError);
-              setError("Account created but clinic assignment failed: " + updateError.message);
-              return;
-            }
-            
-            // Auto login after signup
-            setLocation("/dashboard");
-          } catch (err: any) {
-            console.error("Setup error:", err);
-            setError("Account created but setup failed: " + err.message);
-          }
-        }
+        setLocation("/dashboard");
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -145,129 +48,7 @@ export default function AuthPage() {
         </CardHeader>
 
         <CardContent className="p-6">
-          <div className="flex justify-center gap-2 mb-6">
-            <Button
-              onClick={() => setIsLogin(true)}
-              variant={isLogin ? "default" : "outline"}
-              className={isLogin ? "bg-blue-600 hover:bg-blue-700" : ""}
-            >
-              Login
-            </Button>
-            <Button
-              onClick={() => setIsLogin(false)}
-              variant={!isLogin ? "default" : "outline"}
-              className={!isLogin ? "bg-blue-600 hover:bg-blue-700" : ""}
-            >
-              Sign Up
-            </Button>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            {!isLogin && (
-              <>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold text-blue-900 mb-2">Organization Details</h3>
-                  <p className="text-xs text-blue-700">Set up your clinic/practice information</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Clinic/Practice Name *
-                  </label>
-                  <Input
-                    type="text"
-                    value={clinicName}
-                    onChange={(e) => setClinicName(e.target.value)}
-                    required={!isLogin}
-                    placeholder="Dr. Smith Neurosurgery Clinic"
-                    className="w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Clinic Address (Optional)
-                  </label>
-                  <Input
-                    type="text"
-                    value={clinicAddress}
-                    onChange={(e) => setClinicAddress(e.target.value)}
-                    placeholder="123 Medical Plaza, Suite 100"
-                    className="w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Clinic Phone (Optional)
-                  </label>
-                  <Input
-                    type="tel"
-                    value={clinicPhone}
-                    onChange={(e) => setClinicPhone(e.target.value)}
-                    placeholder="+1 (555) 123-4567"
-                    className="w-full"
-                  />
-                </div>
-
-                <div className="border-t pt-4 mt-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Your Account</h3>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name *
-                  </label>
-                  <Input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required={!isLogin}
-                    placeholder="Dr. John Smith"
-                    className="w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Role *
-                  </label>
-                  <Select value={role} onValueChange={(val: "consultant" | "assistant") => setRole(val)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="consultant">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">Consultant</span>
-                          <span className="text-xs text-gray-500">Neurosurgeon - Full access</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="assistant">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">Assistant</span>
-                          <span className="text-xs text-gray-500">Clinical assistant - Task management</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Your Phone (Optional)
-                  </label>
-                  <Input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+1 (555) 987-6543"
-                    className="w-full"
-                  />
-                </div>
-              </>
-            )}
-
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email *
@@ -316,28 +97,52 @@ export default function AuthPage() {
                   </svg>
                   Processing...
                 </span>
-              ) : isLogin ? (
-                "Login"
               ) : (
-                "Create Account"
+                "Login"
               )}
             </Button>
           </form>
+
+          {/* Divider */}
+          <div className="mt-6 relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-500">
+                New to ZahaniFlow?
+              </span>
+            </div>
+          </div>
+
+          {/* SaaS Signup Button */}
+          <div className="mt-6">
+            <Button
+              type="button"
+              onClick={() => setWizardOpen(true)}
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <Sparkles className="mr-2 h-5 w-5" />
+              Create Your Clinic - Start Free Trial
+            </Button>
+            <p className="text-xs text-center text-gray-500 mt-2">
+              Set up your clinic in minutes • No credit card required
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      <p className="mt-6 text-sm text-gray-600">
-        {isLogin ? "Need an account? " : "Already have an account? "}
-        <button
-          onClick={() => {
-            setIsLogin(!isLogin);
-            setError(null);
-          }}
-          className="text-blue-600 font-medium hover:underline"
-        >
-          {isLogin ? "Sign up" : "Login"}
-        </button>
+      <p className="mt-6 text-xs text-center text-gray-500 max-w-md">
+        By creating a clinic, you agree to our Terms of Service and Privacy Policy.
+        <br />
+        Your 7-day free trial starts automatically.
       </p>
+
+      {/* Clinic Signup Wizard */}
+      <ClinicSignupWizard 
+        open={wizardOpen} 
+        onOpenChange={setWizardOpen}
+      />
     </div>
   );
 }
