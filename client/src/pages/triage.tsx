@@ -367,16 +367,20 @@ export default function Triage() {
       {/* Priority Appointments */}
       {priorityAppointments.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <h2 className="text-xl font-bold text-red-600">Priority Cases</h2>
+            <Badge variant="destructive" className="text-sm font-medium">
+              Total: {priorityAppointments.length}
+            </Badge>
           </div>
-          {priorityAppointments.map((appointment: any) => (
+          {priorityAppointments.map((appointment: any, index: number) => (
             <AppointmentTriageCard
               key={appointment.id}
               appointment={appointment}
               onTriage={() => openTriageDialog(appointment)}
               onViewPatient={() => setLocation(`/patients/${appointment.patient?.id}`)}
+              index={index}
             />
           ))}
         </div>
@@ -385,9 +389,12 @@ export default function Triage() {
       {/* Regular Appointments */}
       <div className="space-y-3">
         {priorityAppointments.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ClipboardList className="w-5 h-5 text-gray-600" />
             <h2 className="text-xl font-bold text-gray-900">Regular Queue</h2>
+            <Badge variant="secondary" className="text-sm font-medium">
+              Total: {regularAppointments.length}
+            </Badge>
           </div>
         )}
         {regularAppointments.length === 0 && priorityAppointments.length === 0 ? (
@@ -404,12 +411,13 @@ export default function Triage() {
             </CardContent>
           </Card>
         ) : (
-          regularAppointments.map((appointment: any) => (
+          regularAppointments.map((appointment: any, index: number) => (
             <AppointmentTriageCard
               key={appointment.id}
               appointment={appointment}
               onTriage={() => openTriageDialog(appointment)}
               onViewPatient={() => setLocation(`/patients/${appointment.patient?.id}`)}
+              index={index}
             />
           ))
         )}
@@ -642,15 +650,24 @@ function AppointmentTriageCard({
   appointment,
   onTriage,
   onViewPatient,
+  index,
 }: {
   appointment: any;
   onTriage: () => void;
   onViewPatient: () => void;
+  index?: number;
 }) {
   return (
     <Card className={`hover-elevate ${appointment.isPriority ? "border-red-300 border-2" : ""}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
+          {/* Row Number */}
+          {index !== undefined && (
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-2">
+              <span className="text-sm font-semibold text-primary">{index + 1}</span>
+            </div>
+          )}
+          
           {/* Color Bar */}
           <div
             className="w-1 h-24 rounded-full"

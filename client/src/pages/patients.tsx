@@ -158,7 +158,12 @@ export default function Patients() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Patient Records</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-2xl font-semibold">Patient Records</h1>
+            <Badge variant="secondary" className="text-sm font-medium">
+              Total: {filteredPatients.length}
+            </Badge>
+          </div>
           <p className="text-sm text-muted-foreground">Manage and view all patient information</p>
         </div>
         <div className="flex gap-2">
@@ -216,7 +221,7 @@ export default function Patients() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPatients.map((patient) => (
+              {filteredPatients.map((patient, index) => (
                 <Card
                   key={patient.id}
                   className="hover-elevate cursor-pointer"
@@ -225,6 +230,9 @@ export default function Patients() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-sm font-semibold text-primary">{index + 1}</span>
+                      </div>
                       <PatientAvatar
                         firstName={patient.firstName}
                         lastName={patient.lastName}

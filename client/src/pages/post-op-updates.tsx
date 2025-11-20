@@ -67,50 +67,90 @@ export default function PostOpUpdates() {
   const { toast } = useToast();
   const { clinic } = useClinic();
 
-  // Fetch all post-op updates for the procedures
+  // Fetch active post-op procedures (done but not discharged)
   const { data: allPostOpUpdates = [], isLoading } = useQuery({
     queryKey: ["allPostOpUpdates", clinic?.id],
     queryFn: async () => {
       if (!clinic?.id) return [];
       
-      const { data } = await supabase
-        .from("post_op_updates")
+      // Get all procedures marked as done
+      const { data: procedures, error: procError } = await supabase
+        .from("procedures")
         .select(`
-          *,
-          procedure:procedures(
+          id,
+          procedure_type,
+          actual_date,
+          actual_time,
+          status,
+          patient:patients(
             id,
-            procedure_type,
-            actual_date,
-            patient:patients(
-              id,
-              patient_number,
-              first_name,
-              last_name,
-              age,
-              gender
-            ),
-            hospital:hospitals(id, name, code, color)
+            patient_number,
+            first_name,
+            last_name,
+            age,
+            gender
+          ),
+          hospital:hospitals(id, name, code, color),
+          post_op_updates(
+            id,
+            update_date,
+            day_post_op,
+            gcs_score,
+            motor_ur,
+            motor_ul,
+            motor_lr,
+            motor_ll,
+            blood_pressure,
+            pulse,
+            temperature,
+            wound_status,
+            improvement_notes,
+            new_complaints
           )
         `)
         .eq("clinic_id", clinic.id)
-        .order("update_date", { ascending: false })
-        .order("day_post_op", { ascending: false });
+        .eq("status", "done")
+        .order("actual_date", { ascending: false });
 
-      return data || [];
+      if (procError) throw procError;
+      if (!procedures) return [];
+      
+      // Filter out discharged procedures
+      const { data: dischargedIds } = await supabase
+        .from("discharges")
+        .select("procedure_id");
+      
+      const dischargedProcedureIds = new Set(dischargedIds?.map(d => d.procedure_id) || []);
+      const activePostOp = procedures.filter(p => !dischargedProcedureIds.has(p.id));
+      
+      return activePostOp;
     },
     enabled: !!clinic?.id,
   });
 
-  // Filter updates based on search
-  const filteredUpdates = allPostOpUpdates.filter(update => {
-    const patient = update.procedure?.patient;
+  // Filter procedures based on search
+  const filteredUpdates = allPostOpUpdates.filter(procedure => {
+    const patient = procedure?.patient;
     const searchLower = searchTerm.toLowerCase();
     return (
-      patient?.first_name.toLowerCase().includes(searchLower) ||
-      patient?.last_name.toLowerCase().includes(searchLower) ||
-      patient?.patient_number.includes(searchLower)
+      patient?.first_name?.toLowerCase().includes(searchLower) ||
+      patient?.last_name?.toLowerCase().includes(searchLower) ||
+      patient?.patient_number?.includes(searchLower)
     );
   });
+  
+  // Helper function to get latest post-op day
+  const getLatestPostOpDay = (procedure: any) => {
+    if (!procedure.post_op_updates || procedure.post_op_updates.length === 0) {
+      return procedure.actual_date 
+        ? differenceInDays(new Date(), new Date(procedure.actual_date))
+        : 0;
+    }
+    const sortedUpdates = [...procedure.post_op_updates].sort((a, b) => 
+      new Date(b.update_date).getTime() - new Date(a.update_date).getTime()
+    );
+    return sortedUpdates[0].day_post_op || 0;
+  };
 
   // Create or update post-op update mutation
   const createUpdateMutation = useMutation({
@@ -227,10 +267,15 @@ export default function PostOpUpdates() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-8 h-8 text-green-600" />
-            Post-Op Monitoring
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <ClipboardList className="w-8 h-8 text-green-600" />
+              Post-Op Monitoring
+            </h1>
+            <Badge variant="secondary" className="text-sm font-medium">
+              Total: {filteredUpdates.length}
+            </Badge>
+          </div>
           <p className="text-gray-600 mt-1">Daily post-operative patient tracking and vitals</p>
         </div>
         <Button 
@@ -249,7 +294,7 @@ export default function PostOpUpdates() {
             <div className="text-center">
               <Activity className="w-8 h-8 mx-auto mb-2 text-green-600" />
               <p className="text-2xl font-bold">{allPostOpUpdates.length}</p>
-              <p className="text-sm text-gray-500">Total Updates</p>
+              <p className="text-sm text-gray-500">Active Post-Op</p>
             </div>
           </CardContent>
         </Card>
@@ -257,8 +302,10 @@ export default function PostOpUpdates() {
           <CardContent className="pt-6">
             <div className="text-center">
               <TrendingUp className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-              <p className="text-2xl font-bold">{new Set(allPostOpUpdates.map(u => u.procedure_id)).size}</p>
-              <p className="text-sm text-gray-500">Patients Monitored</p>
+              <p className="text-2xl font-bold">
+                {allPostOpUpdates.filter(p => p.post_op_updates && p.post_op_updates.length > 0).length}
+              </p>
+              <p className="text-sm text-gray-500">With Updates</p>
             </div>
           </CardContent>
         </Card>
@@ -304,23 +351,36 @@ export default function PostOpUpdates() {
             </CardContent>
           </Card>
         ) : (
-          filteredUpdates.map((update: any) => {
-            const patient = update.procedure?.patient;
-            const hospital = update.procedure?.hospital;
-            const procedureDate = update.procedure?.actual_date;
-            const daysPostOp = procedureDate 
-              ? differenceInDays(new Date(update.update_date), new Date(procedureDate)) + 1
-              : update.day_post_op;
+          filteredUpdates.map((procedure: any, index: number) => {
+            const patient = procedure?.patient;
+            const hospital = procedure?.hospital;
+            const procedureDate = procedure?.actual_date;
+            const daysPostOp = getLatestPostOpDay(procedure);
+            
+            // Get latest update if exists
+            const latestUpdate = procedure.post_op_updates && procedure.post_op_updates.length > 0
+              ? [...procedure.post_op_updates].sort((a, b) => 
+                  new Date(b.update_date).getTime() - new Date(a.update_date).getTime()
+                )[0]
+              : null;
 
-            const gcsStatus = update.gcs_score >= 13 ? "good" : update.gcs_score >= 9 ? "fair" : "poor";
+            const gcsScore = latestUpdate?.gcs_score || null;
+            const gcsStatus = gcsScore ? (gcsScore >= 13 ? "good" : gcsScore >= 9 ? "fair" : "poor") : null;
             const gcsColor = gcsStatus === "good" ? "text-green-600" : gcsStatus === "fair" ? "text-yellow-600" : "text-red-600";
 
             return (
-              <Card key={update.id} className="hover:shadow-md transition-shadow">
+              <Card 
+                key={procedure.id} 
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => setLocation(`/procedures/${procedure.id}/post-op`)}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-semibold text-primary">{index + 1}</span>
+                    </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-start justify-between mb-2">
                         <div>
                           <h3 className="font-semibold text-lg">
                             {patient?.first_name} {patient?.last_name}
@@ -328,15 +388,21 @@ export default function PostOpUpdates() {
                           <p className="text-sm text-gray-500">
                             #{patient?.patient_number} • {patient?.age}y • {patient?.gender}
                           </p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {procedure.procedure_type}
+                          </p>
                         </div>
+                        <Badge variant={daysPostOp === 0 || !latestUpdate ? "destructive" : "secondary"}>
+                          Day {daysPostOp}
+                        </Badge>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                         {/* GCS Score */}
                         <div className="bg-gray-50 p-3 rounded">
                           <p className="text-xs text-gray-600">GCS Score</p>
-                          <p className={`text-lg font-bold ${gcsColor}`}>
-                            {update.gcs_score}/15
+                          <p className={`text-lg font-bold ${gcsScore ? gcsColor : 'text-gray-400'}`}>
+                            {gcsScore ? `${gcsScore}/15` : "N/A"}
                           </p>
                         </div>
 
@@ -344,8 +410,8 @@ export default function PostOpUpdates() {
                         <div className="bg-gray-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Motor Function</p>
                           <p className="text-xs font-mono mt-1">
-                            <span className="block">UR: {update.motor_ur || "-"}</span>
-                            <span className="block">UL: {update.motor_ul || "-"}</span>
+                            <span className="block">UR: {latestUpdate?.motor_ur || "-"}</span>
+                            <span className="block">UL: {latestUpdate?.motor_ul || "-"}</span>
                           </p>
                         </div>
 
@@ -353,33 +419,33 @@ export default function PostOpUpdates() {
                         <div className="bg-gray-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Vital Signs</p>
                           <p className="text-xs font-mono mt-1">
-                            <span className="block">BP: {update.blood_pressure || "-"}</span>
-                            <span className="block">HR: {update.pulse || "-"}</span>
+                            <span className="block">BP: {latestUpdate?.blood_pressure || "-"}</span>
+                            <span className="block">HR: {latestUpdate?.pulse || "-"}</span>
                           </p>
                         </div>
 
                         {/* Wound Status */}
                         <div className="bg-gray-50 p-3 rounded">
                           <p className="text-xs text-gray-600">Wound</p>
-                          <Badge variant={update.wound_status === "healthy" ? "default" : "secondary"} className="mt-1 text-xs">
-                            {update.wound_status || "N/A"}
+                          <Badge variant={latestUpdate?.wound_status === "healthy" ? "default" : "secondary"} className="mt-1 text-xs">
+                            {latestUpdate?.wound_status || "N/A"}
                           </Badge>
                         </div>
                       </div>
 
                       {/* Notes */}
-                      {(update.improvement_notes || update.new_complaints) && (
+                      {latestUpdate && (latestUpdate.improvement_notes || latestUpdate.new_complaints) && (
                         <div className="mt-3 space-y-2">
-                          {update.improvement_notes && (
+                          {latestUpdate.improvement_notes && (
                             <div className="bg-green-50 p-2 rounded text-sm">
                               <p className="font-medium text-green-800">Improvement:</p>
-                              <p className="text-green-700">{update.improvement_notes}</p>
+                              <p className="text-green-700">{latestUpdate.improvement_notes}</p>
                             </div>
                           )}
-                          {update.new_complaints && (
+                          {latestUpdate.new_complaints && (
                             <div className="bg-yellow-50 p-2 rounded text-sm">
                               <p className="font-medium text-yellow-800">Concerns:</p>
-                              <p className="text-yellow-700">{update.new_complaints}</p>
+                              <p className="text-yellow-700">{latestUpdate.new_complaints}</p>
                             </div>
                           )}
                         </div>
@@ -390,9 +456,13 @@ export default function PostOpUpdates() {
                           {hospital?.name}
                         </span>
                         <span>•</span>
-                        <span>Day {daysPostOp} Post-Op</span>
-                        <span>•</span>
-                        <span>{format(parseISO(update.update_date), "MMM d, yyyy h:mm a")}</span>
+                        <span>Procedure: {format(parseISO(procedureDate), "MMM d, yyyy")}</span>
+                        {latestUpdate && (
+                          <>
+                            <span>•</span>
+                            <span>Last Update: {format(parseISO(latestUpdate.update_date), "MMM d")}</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -400,16 +470,24 @@ export default function PostOpUpdates() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openEditDialog(update)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(`/procedures`);
+                        }}
                       >
-                        <Edit className="w-4 h-4" />
+                        <Eye className="w-4 h-4 mr-1" />
+                        View Details
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setLocation(`/procedures/${update.procedure_id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(`/patients/${patient?.id}`);
+                        }}
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-4 h-4 mr-1" />
+                        Patient
                       </Button>
                     </div>
                   </div>

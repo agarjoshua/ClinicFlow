@@ -4,6 +4,13 @@ import { useClinic } from "@/contexts/ClinicContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   Calendar, 
   UserPlus, 
@@ -12,7 +19,9 @@ import {
   AlertCircle,
   Hospital,
   Users,
-  Clock
+  Clock,
+  Scissors,
+  User
 } from "lucide-react";
 import { format, isToday, parseISO } from "date-fns";
 import { useLocation } from "wouter";
@@ -23,6 +32,8 @@ export default function AssistantDashboard() {
   const { clinic } = useClinic();
   const [isAuthed, setIsAuthed] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [selectedProcedure, setSelectedProcedure] = useState<any>(null);
+  const [procedureDialogOpen, setProcedureDialogOpen] = useState(false);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -353,7 +364,7 @@ export default function AssistantDashboard() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setLocation("/appointments")}
+              onClick={() => setLocation("/triage")}
             >
               View All
             </Button>
@@ -368,7 +379,7 @@ export default function AssistantDashboard() {
                 <div
                   key={appointment.id}
                   className="p-4 rounded-lg border bg-orange-50 hover:bg-orange-100 cursor-pointer transition-colors"
-                  onClick={() => setLocation(`/appointments/${appointment.id}/triage`)}
+                  onClick={() => setLocation(`/triage`)}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -490,7 +501,10 @@ export default function AssistantDashboard() {
                   key={procedure.id}
                   className="p-4 rounded-lg border-l-4 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
                   style={{ borderLeftColor: procedure.hospital?.color || "#8b5cf6" }}
-                  onClick={() => setLocation(`/procedures/${procedure.id}`)}
+                  onClick={() => {
+                    setSelectedProcedure(procedure);
+                    setProcedureDialogOpen(true);
+                  }}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -521,6 +535,103 @@ export default function AssistantDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Procedure Details Dialog */}
+      <Dialog open={procedureDialogOpen} onOpenChange={setProcedureDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Scissors className="w-5 h-5 text-purple-600" />
+              Procedure Details
+            </DialogTitle>
+            <DialogDescription>
+              View complete procedure information
+            </DialogDescription>
+          </DialogHeader>
+          {selectedProcedure && (
+            <div className="space-y-4">
+              {/* Patient Info */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <User className="w-5 h-5 text-gray-600" />
+                    <h3 className="font-semibold">Patient Information</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span className="font-medium">
+                        {selectedProcedure.patient?.first_name} {selectedProcedure.patient?.last_name}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Patient #:</span>
+                      <span className="font-mono">{selectedProcedure.patient?.patient_number}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Procedure Info */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Scissors className="w-5 h-5 text-purple-600" />
+                    <h3 className="font-semibold">Procedure Information</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Type:</span>
+                      <span className="font-medium">{selectedProcedure.procedure_type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <Badge>{selectedProcedure.status}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Scheduled Date:</span>
+                      <span className="font-medium">
+                        {format(parseISO(selectedProcedure.scheduled_date), "MMM dd, yyyy")}
+                      </span>
+                    </div>
+                    {selectedProcedure.scheduled_time && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Scheduled Time:</span>
+                        <span className="font-medium">{selectedProcedure.scheduled_time}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Hospital:</span>
+                      <span className="font-medium" style={{ color: selectedProcedure.hospital?.color }}>
+                        {selectedProcedure.hospital?.name}
+                      </span>
+                    </div>
+                    {selectedProcedure.consultant && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Consultant:</span>
+                        <span className="font-medium">{selectedProcedure.consultant.name}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setProcedureDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setProcedureDialogOpen(false);
+                  setLocation(`/patients/${selectedProcedure.patient?.id}`);
+                }}>
+                  View Patient
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

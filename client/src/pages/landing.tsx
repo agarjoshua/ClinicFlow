@@ -23,13 +23,20 @@ import {
 export default function LandingPage() {
   const [, setLocation] = useLocation();
 
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white scroll-smooth">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
+            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity">
               <img 
                 src="/zahaniflow.png" 
                 alt="ZahaniFlow" 
@@ -38,18 +45,18 @@ export default function LandingPage() {
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 ZahaniFlow
               </span>
-            </div>
+            </button>
             
             <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">
+              <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-gray-900 transition-colors">
                 Features
-              </a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
+              </button>
+              <button onClick={() => scrollToSection('pricing')} className="text-gray-600 hover:text-gray-900 transition-colors">
                 Pricing
-              </a>
-              <a href="#testimonials" className="text-gray-600 hover:text-gray-900 transition-colors">
+              </button>
+              <button onClick={() => scrollToSection('testimonials')} className="text-gray-600 hover:text-gray-900 transition-colors">
                 Testimonials
-              </a>
+              </button>
               <Button
                 variant="ghost"
                 onClick={() => setLocation("/auth")}
@@ -99,13 +106,6 @@ export default function LandingPage() {
                 Start Free Trial
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="text-lg px-8 py-6"
-              >
-                Watch Demo
-              </Button>
             </div>
             
             <div className="flex items-center justify-center gap-8 text-sm text-gray-600">
@@ -129,31 +129,52 @@ export default function LandingPage() {
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 rounded-3xl blur-3xl"></div>
               <div className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-4 shadow-2xl border border-gray-200">
-                <div className="bg-white rounded-2xl p-8 shadow-xl">
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="h-3 bg-gray-200 rounded-full"></div>
-                    <div className="h-3 bg-gray-200 rounded-full"></div>
-                    <div className="h-3 bg-gray-200 rounded-full"></div>
+                <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl">
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 md:p-4 border border-blue-200">
+                      <div className="text-xs md:text-sm text-blue-600 font-medium mb-1">Total Patients</div>
+                      <div className="text-2xl md:text-3xl font-bold text-blue-700">152</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 md:p-4 border border-green-200">
+                      <div className="text-xs md:text-sm text-green-600 font-medium mb-1">Appointments</div>
+                      <div className="text-2xl md:text-3xl font-bold text-green-700">47</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 md:p-4 border border-purple-200">
+                      <div className="text-xs md:text-sm text-purple-600 font-medium mb-1">Procedures</div>
+                      <div className="text-2xl md:text-3xl font-bold text-purple-700">23</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3 md:p-4 border border-orange-200">
+                      <div className="text-xs md:text-sm text-orange-600 font-medium mb-1">Active</div>
+                      <div className="text-2xl md:text-3xl font-bold text-orange-700">12</div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-6">
-                    <Card className="col-span-1 border-blue-200 bg-blue-50">
-                      <CardContent className="p-4">
-                        <img 
-                          src="/zahaniflow.png" 
-                          alt="ZahaniFlow" 
-                          className="h-8 w-8 object-contain mb-2"
-                        />
-                        <div className="h-2 bg-blue-200 rounded mb-2"></div>
-                        <div className="h-2 bg-blue-200 rounded w-3/4"></div>
-                      </CardContent>
-                    </Card>
-                    <Card className="col-span-3">
-                      <CardContent className="p-4 space-y-3">
-                        <div className="h-3 bg-gray-200 rounded"></div>
-                        <div className="h-3 bg-gray-200 rounded"></div>
-                        <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-                      </CardContent>
-                    </Card>
+                  {/* Patient List */}
+                  <div className="space-y-2 md:space-y-3">
+                    <div className="flex items-center gap-3 md:gap-4 bg-gray-50 p-3 md:p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                      <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm md:text-base">JD</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm md:text-base truncate">John Doe</div>
+                        <div className="text-xs md:text-sm text-gray-600 truncate">Appointment Today • 2:00 PM</div>
+                      </div>
+                      <div className="text-xs font-medium text-green-600 bg-green-100 px-2 md:px-3 py-1 rounded-full whitespace-nowrap">Confirmed</div>
+                    </div>
+                    <div className="flex items-center gap-3 md:gap-4 bg-gray-50 p-3 md:p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                      <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm md:text-base">SM</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm md:text-base truncate">Sarah Miller</div>
+                        <div className="text-xs md:text-sm text-gray-600 truncate">Surgery Tomorrow • 9:00 AM</div>
+                      </div>
+                      <div className="text-xs font-medium text-blue-600 bg-blue-100 px-2 md:px-3 py-1 rounded-full whitespace-nowrap">Scheduled</div>
+                    </div>
+                    <div className="flex items-center gap-3 md:gap-4 bg-gray-50 p-3 md:p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                      <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold text-sm md:text-base">MB</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm md:text-base truncate">Michael Brown</div>
+                        <div className="text-xs md:text-sm text-gray-600 truncate">Follow-up • Post-Op Day 3</div>
+                      </div>
+                      <div className="text-xs font-medium text-orange-600 bg-orange-100 px-2 md:px-3 py-1 rounded-full whitespace-nowrap">Active</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -167,16 +188,16 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { number: "10,000+", label: "Active Users" },
-              { number: "500+", label: "Healthcare Facilities" },
-              { number: "1M+", label: "Patients Managed" },
+              { number: "3+", label: "Total Clinics" },
+              { number: "6+", label: "Total Users" },
+              { number: "152+", label: "Total Patients" },
               { number: "99.9%", label: "Uptime" },
             ].map((stat, index) => (
               <div key={index} className="text-center">
-                <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                <div className="text-3xl md:text-5xl font-bold text-white mb-2">
                   {stat.number}
                 </div>
-                <div className="text-blue-100">{stat.label}</div>
+                <div className="text-blue-100 text-sm md:text-base">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -214,31 +235,31 @@ export default function LandingPage() {
                 icon: Calendar,
                 title: "Smart Scheduling",
                 description: "Intelligent appointment booking with calendar sync, reminders, and multi-location support.",
-                color: "indigo",
+                color: "blue",
               },
               {
                 icon: FileText,
                 title: "Medical Records",
                 description: "Secure digital records with easy access to diagnoses, prescriptions, and test results.",
-                color: "purple",
+                color: "blue",
               },
               {
                 icon: BarChart3,
                 title: "Analytics & Reports",
                 description: "Real-time insights into your practice with customizable dashboards and detailed reports.",
-                color: "pink",
+                color: "blue",
               },
               {
                 icon: Shield,
                 title: "HIPAA Compliant",
                 description: "Enterprise-grade security with end-to-end encryption and compliance with healthcare regulations.",
-                color: "green",
+                color: "blue",
               },
               {
                 icon: Stethoscope,
                 title: "Clinical Workflow",
                 description: "Streamlined workflows for consultations, procedures, discharges, and follow-ups.",
-                color: "orange",
+                color: "blue",
               },
             ].map((feature, index) => (
               <Card
@@ -285,7 +306,7 @@ export default function LandingPage() {
             {[
               {
                 name: "Starter",
-                price: "KES 5,000",
+                price: "USD 39",
                 period: "per month",
                 description: "Perfect for small practices",
                 features: [
@@ -301,7 +322,7 @@ export default function LandingPage() {
               },
               {
                 name: "Professional",
-                price: "KES 15,000",
+                price: "USD 116",
                 period: "per month",
                 description: "For growing practices",
                 features: [

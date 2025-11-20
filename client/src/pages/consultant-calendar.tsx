@@ -527,6 +527,7 @@ export default function ConsultantCalendar() {
         onOpenChange={setDialogOpen}
         date={selectedDate}
         sessions={selectedDate ? getSessionsForDay(selectedDate) : []}
+        reminders={reminders}
       />
       </div>
     </div>

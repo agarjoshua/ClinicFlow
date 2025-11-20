@@ -113,10 +113,15 @@ export default function Discharged() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-            Discharged Patients
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              Discharged Patients
+            </h1>
+            <Badge variant="secondary" className="text-sm font-medium">
+              Total: {filteredDischarges.length}
+            </Badge>
+          </div>
           <p className="text-gray-600 mt-1">View all discharged patient records</p>
         </div>
       </div>
@@ -188,7 +193,7 @@ export default function Discharged() {
             </CardContent>
           </Card>
         ) : (
-          filteredDischarges.map((discharge: any) => {
+          filteredDischarges.map((discharge: any, index: number) => {
             const patient = discharge.procedure?.patient;
             const hospital = discharge.procedure?.hospital;
 
@@ -196,6 +201,9 @@ export default function Discharged() {
               <Card key={discharge.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-semibold text-primary">{index + 1}</span>
+                    </div>
                     <div className="flex-1">
                       {/* Patient Info */}
                       <div className="flex items-start gap-3 mb-3">

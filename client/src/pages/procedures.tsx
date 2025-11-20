@@ -214,18 +214,21 @@ export default function Procedures() {
     enabled: !!clinic?.id,
   });
 
-  // Fetch doctors/consultants
+  // Fetch doctors/consultants (scoped to clinic)
   const { data: doctors = [] } = useQuery({
-    queryKey: ["doctors"],
+    queryKey: ["doctors", clinic?.id],
     queryFn: async () => {
+      if (!clinic?.id) return [];
       const { data, error } = await supabase
         .from("users")
         .select("id, name, role")
+        .eq("clinic_id", clinic.id)
         .in("role", ["doctor", "consultant"])
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: !!clinic?.id,
   });
 
   // Schedule procedure mutation
@@ -538,7 +541,7 @@ export default function Procedures() {
                 </CardContent>
               </Card>
             ) : (
-              filteredProcedures.map((procedure: any) => (
+              filteredProcedures.map((procedure: any, index: number) => (
                 <ProcedureCard
                   key={procedure.id}
                   procedure={procedure}
@@ -555,6 +558,7 @@ export default function Procedures() {
                     });
                   }}
                   onViewPatient={() => setLocation(`/patients/${procedure.patient?.id}`)}
+                  index={index}
                 />
               ))
             )}
@@ -956,6 +960,7 @@ function ProcedureCard({
   onDelete,
   onUpdateStatus,
   onViewPatient,
+  index,
 }: {
   procedure: any;
   onView: () => void;
@@ -963,6 +968,7 @@ function ProcedureCard({
   onDelete: () => void;
   onUpdateStatus: (status: ProcedureStatus) => void;
   onViewPatient: () => void;
+  index?: number;
 }) {
   const statusColors: Record<string, string> = {
     planned: "bg-gray-100 text-gray-800",
@@ -976,6 +982,13 @@ function ProcedureCard({
     <Card className="hover-elevate">
       <CardContent className="p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          {/* Row Number */}
+          {index !== undefined && (
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-2">
+              <span className="text-sm font-semibold text-primary">{index + 1}</span>
+            </div>
+          )}
+          
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center xl:items-start xl:gap-6">
             <div
               className="w-full h-1 rounded-full sm:w-1 sm:h-20"

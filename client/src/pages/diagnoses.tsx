@@ -526,16 +526,20 @@ export default function Diagnoses() {
       {/* Priority Appointments */}
       {priorityAppointments.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <h2 className="text-xl font-bold text-red-600">Priority Cases</h2>
+            <Badge variant="destructive" className="text-sm font-medium">
+              Total: {priorityAppointments.length}
+            </Badge>
           </div>
-          {priorityAppointments.map((appointment: any) => (
+          {priorityAppointments.map((appointment: any, index: number) => (
             <AppointmentDiagnosisCard
               key={appointment.id}
               appointment={appointment}
               onDiagnose={() => openDiagnosisDialog(appointment)}
               onViewPatient={() => setLocation(`/patients/${appointment.patient?.id}`)}
+              index={index}
             />
           ))}
         </div>
@@ -544,9 +548,12 @@ export default function Diagnoses() {
       {/* Regular Appointments */}
       <div className="space-y-3">
         {priorityAppointments.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <FileText className="w-5 h-5 text-gray-600" />
             <h2 className="text-xl font-bold text-gray-900">Regular Queue</h2>
+            <Badge variant="secondary" className="text-sm font-medium">
+              Total: {regularAppointments.length}
+            </Badge>
           </div>
         )}
         {regularAppointments.length === 0 && priorityAppointments.length === 0 ? (
@@ -563,12 +570,13 @@ export default function Diagnoses() {
             </CardContent>
           </Card>
         ) : (
-          regularAppointments.map((appointment: any) => (
+          regularAppointments.map((appointment: any, index: number) => (
             <AppointmentDiagnosisCard
               key={appointment.id}
               appointment={appointment}
               onDiagnose={() => openDiagnosisDialog(appointment)}
               onViewPatient={() => setLocation(`/patients/${appointment.patient?.id}`)}
+              index={index}
             />
           ))
         )}
@@ -989,15 +997,24 @@ function AppointmentDiagnosisCard({
   appointment,
   onDiagnose,
   onViewPatient,
+  index,
 }: {
   appointment: any;
   onDiagnose: () => void;
   onViewPatient: () => void;
+  index?: number;
 }) {
   return (
     <Card className={`hover-elevate ${appointment.isPriority ? "border-red-300 border-2" : ""}`}>
       <CardContent className="p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          {/* Row Number */}
+          {index !== undefined && (
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-2">
+              <span className="text-sm font-semibold text-primary">{index + 1}</span>
+            </div>
+          )}
+          
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center xl:items-start xl:gap-6">
             <div
               className="w-full h-1 rounded-full sm:w-1 sm:h-24"

@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PatientAvatar } from "@/components/patient-avatar";
-import { Clock, Hospital, Users, AlertCircle, Eye } from "lucide-react";
-import { format } from "date-fns";
+import { Clock, Hospital, Users, AlertCircle, Eye, Bell } from "lucide-react";
+import { format, isSameDay, parseISO } from "date-fns";
 import { useLocation } from "wouter";
 
 interface DayDetailsDialogProps {
@@ -12,9 +12,10 @@ interface DayDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
   date: Date | null;
   sessions: any[];
+  reminders?: any[];
 }
 
-export function DayDetailsDialog({ open, onOpenChange, date, sessions }: DayDetailsDialogProps) {
+export function DayDetailsDialog({ open, onOpenChange, date, sessions, reminders = [] }: DayDetailsDialogProps) {
   const [, setLocation] = useLocation();
 
   if (!date) return null;
@@ -22,6 +23,11 @@ export function DayDetailsDialog({ open, onOpenChange, date, sessions }: DayDeta
   const getTotalAppointments = (session: any) => session.appointments?.length || 0;
   const getPriorityCount = (session: any) => 
     session.appointments?.filter((apt: any) => apt.is_priority).length || 0;
+
+  // Filter reminders for the selected date
+  const dayReminders = reminders.filter(reminder => 
+    isSameDay(parseISO(reminder.reminder_date), date)
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -33,6 +39,39 @@ export function DayDetailsDialog({ open, onOpenChange, date, sessions }: DayDeta
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* Reminders Section */}
+          {dayReminders.length > 0 && (
+            <Card className="border-l-4 border-l-amber-500 bg-amber-50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Bell className="w-5 h-5 text-amber-600" />
+                  <h3 className="text-lg font-semibold text-amber-900">
+                    Reminders ({dayReminders.length})
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {dayReminders.map((reminder) => (
+                    <div
+                      key={reminder.id}
+                      className="flex items-start gap-3 p-3 bg-white rounded-lg border border-amber-200"
+                    >
+                      <Bell className="w-4 h-4 text-amber-600 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-300">
+                            {reminder.type || "General"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-800">{reminder.notes}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Sessions Section */}
           {sessions.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500">No clinic sessions scheduled for this day</p>

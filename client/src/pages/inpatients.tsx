@@ -252,7 +252,7 @@ export default function Inpatients() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {inpatients.map((patient) => {
+          {inpatients.map((patient, index: number) => {
             const admittedDate = patient.admittedAt ? new Date(patient.admittedAt) : null;
             const admissionRange = admittedDate
               ? `${format(admittedDate, "MMM dd, yyyy p")} • ${formatDistanceToNow(admittedDate, { addSuffix: true })}`
@@ -262,6 +262,9 @@ export default function Inpatients() {
               <Card key={patient.id} className="border-l-4 border-emerald-500">
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-semibold text-primary">{index + 1}</span>
+                    </div>
                     <div className="flex flex-1 gap-4">
                       <PatientAvatar
                         firstName={patient.firstName}

@@ -221,10 +221,17 @@ export default function Appointments() {
     }
   };
 
-  const AppointmentCard = ({ appointment }: { appointment: any }) => (
+  const AppointmentCard = ({ appointment, index }: { appointment: any; index?: number }) => (
     <Card className="hover-elevate">
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
+          {/* Row Number */}
+          {index !== undefined && (
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-2">
+              <span className="text-sm font-semibold text-primary">{index + 1}</span>
+            </div>
+          )}
+          
           {/* Color Bar */}
           <div 
             className="w-1 h-24 rounded-full"
@@ -497,8 +504,8 @@ export default function Appointments() {
               </CardContent>
             </Card>
           ) : (
-            filteredAppointments.map((appointment: any) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} />
+            filteredAppointments.map((appointment: any, index: number) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} index={index} />
             ))
           )}
         </TabsContent>
@@ -511,8 +518,8 @@ export default function Appointments() {
               </CardContent>
             </Card>
           ) : (
-            bookedAppointments.map((appointment: any) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} />
+            bookedAppointments.map((appointment: any, index: number) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} index={index} />
             ))
           )}
         </TabsContent>
@@ -525,8 +532,8 @@ export default function Appointments() {
               </CardContent>
             </Card>
           ) : (
-            confirmedAppointments.map((appointment: any) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} />
+            confirmedAppointments.map((appointment: any, index: number) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} index={index} />
             ))
           )}
         </TabsContent>
@@ -539,8 +546,8 @@ export default function Appointments() {
               </CardContent>
             </Card>
           ) : (
-            seenAppointments.map((appointment: any) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} />
+            seenAppointments.map((appointment: any, index: number) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} index={index} />
             ))
           )}
         </TabsContent>
@@ -553,8 +560,8 @@ export default function Appointments() {
               </CardContent>
             </Card>
           ) : (
-            cancelledAppointments.map((appointment: any) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} />
+            cancelledAppointments.map((appointment: any, index: number) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} index={index} />
             ))
           )}
         </TabsContent>
