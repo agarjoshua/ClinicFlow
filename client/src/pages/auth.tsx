@@ -62,13 +62,13 @@ export default function AuthPage() {
                   Test the platform with pre-loaded data before signing up!
                 </p>
                 <div className="bg-white rounded-md p-3 space-y-2 border border-green-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600">Email:</span>
-                    <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">demo.consultant@zahaniflow.com</code>
+                  <div className="space-y-1">
+                    <span className="text-xs text-gray-600 block">Email:</span>
+                    <code className="text-xs sm:text-sm font-mono bg-gray-100 px-2 py-1 rounded block break-all">demo.consultant@zahaniflow.com</code>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600">Password:</span>
-                    <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">DemoConsultant2025!</code>
+                  <div className="space-y-1">
+                    <span className="text-xs text-gray-600 block">Password:</span>
+                    <code className="text-xs sm:text-sm font-mono bg-gray-100 px-2 py-1 rounded block break-all">DemoConsultant2025!</code>
                   </div>
                 </div>
                 <button

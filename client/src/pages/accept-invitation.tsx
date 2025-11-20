@@ -89,7 +89,53 @@ export default function AcceptInvitationPage() {
     mutationFn: async () => {
       if (!invitation || !token) throw new Error("Invalid invitation");
 
-      // 1. Create auth user
+      // 1. Get clinic details and check limits
+      const { data: invData } = await supabase
+        .from("invitations")
+        .select("clinic_id, role")
+        .eq("token", token)
+        .single();
+
+      if (!invData) throw new Error("Invitation not found");
+
+      // Get clinic limits
+      const { data: clinicData, error: clinicError } = await supabase
+        .from("clinics")
+        .select("max_consultants, max_assistants")
+        .eq("id", invData.clinic_id)
+        .single();
+
+      if (clinicError) throw new Error("Failed to fetch clinic limits");
+
+      // Count current users by role
+      const { count: consultantCount } = await supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .eq("clinic_id", invData.clinic_id)
+        .eq("role", "consultant");
+
+      const { count: assistantCount } = await supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .eq("clinic_id", invData.clinic_id)
+        .eq("role", "assistant");
+
+      // Check if adding this user would exceed limits
+      if (invitation.role === "consultant") {
+        if ((consultantCount || 0) >= (clinicData.max_consultants || 1)) {
+          throw new Error(
+            `This clinic has reached its consultant limit (${clinicData.max_consultants}). Please contact the clinic administrator.`
+          );
+        }
+      } else if (invitation.role === "assistant") {
+        if ((assistantCount || 0) >= (clinicData.max_assistants || 2)) {
+          throw new Error(
+            `This clinic has reached its assistant limit (${clinicData.max_assistants}). Please contact the clinic administrator.`
+          );
+        }
+      }
+
+      // 2. Create auth user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: invitation.email,
         password,
@@ -97,15 +143,6 @@ export default function AcceptInvitationPage() {
 
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error("Failed to create user");
-
-      // 2. Get clinic_id from invitation
-      const { data: invData } = await supabase
-        .from("invitations")
-        .select("clinic_id")
-        .eq("token", token)
-        .single();
-
-      if (!invData) throw new Error("Invitation not found");
 
       // 3. Create user profile with clinic_id
       const { error: profileError } = await supabase.from("users").insert({

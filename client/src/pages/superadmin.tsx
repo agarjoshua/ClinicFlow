@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -71,6 +74,8 @@ import {
   Edit,
   Trash2,
   CreditCard,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -109,11 +114,13 @@ export default function SuperAdmin() {
   const [clinicDialogOpen, setClinicDialogOpen] = useState(false);
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [suspensionMessage, setSuspensionMessage] = useState("");
   const [selectedClinicForEdit, setSelectedClinicForEdit] = useState<any>(null);
   const [clinicDialogMode, setClinicDialogMode] = useState<"create" | "edit">("create");
 
   // Fetch all clinics
-  const { data: clinics = [], isLoading: clinicsLoading } = useQuery({
+  const { data: clinics = [], isLoading: clinicsLoading, error: clinicsError } = useQuery({
     queryKey: ["superadmin-clinics"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -121,8 +128,12 @@ export default function SuperAdmin() {
         .select("*")
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error("Error fetching clinics:", error);
+        throw error;
+      }
+      console.log("Fetched clinics:", data);
+      return data || [];
     },
   });
 
@@ -191,6 +202,63 @@ export default function SuperAdmin() {
       queryClient.invalidateQueries({ queryKey: ["superadmin-clinics"] });
       queryClient.invalidateQueries({ queryKey: ["superadmin-clinic-stats"] });
       setDeleteDialogOpen(false);
+      setSelectedClinicForEdit(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleSuspensionMutation = useMutation({
+    mutationFn: async ({ clinicId, suspend, message }: { clinicId: string; suspend: boolean; message?: string }) => {
+      const updateData: any = {
+        subscription_status: suspend ? "suspended" : "active",
+      };
+
+      // Store custom suspension message in settings jsonb field
+      if (suspend && message) {
+        const { data: clinic } = await supabase
+          .from("clinics")
+          .select("settings")
+          .eq("id", clinicId)
+          .single();
+
+        updateData.settings = {
+          ...(clinic?.settings || {}),
+          suspension_message: message,
+        };
+      } else if (!suspend) {
+        // Clear suspension message when reactivating
+        const { data: clinic } = await supabase
+          .from("clinics")
+          .select("settings")
+          .eq("id", clinicId)
+          .single();
+
+        const { suspension_message, ...restSettings } = clinic?.settings || {};
+        updateData.settings = restSettings;
+      }
+
+      const { error } = await supabase
+        .from("clinics")
+        .update(updateData)
+        .eq("id", clinicId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: "Success",
+        description: `Clinic ${variables.suspend ? "suspended" : "activated"} successfully`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["superadmin-clinics"] });
+      queryClient.invalidateQueries({ queryKey: ["superadmin-clinic-stats"] });
+      setSuspendDialogOpen(false);
+      setSuspensionMessage("");
       setSelectedClinicForEdit(null);
     },
     onError: (error: any) => {
@@ -348,6 +416,19 @@ export default function SuperAdmin() {
 
   return (
     <div className="container mx-auto p-4 space-y-6">
+      {/* Error Display */}
+      {clinicsError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-red-800 font-semibold">Error Loading Clinics</h3>
+          <p className="text-red-600 text-sm mt-1">
+            {clinicsError instanceof Error ? clinicsError.message : "Failed to load clinic data"}
+          </p>
+          <p className="text-red-600 text-xs mt-2">
+            Check browser console for details or verify you have superadmin access.
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -567,6 +648,32 @@ export default function SuperAdmin() {
                                 Manage Subscription
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              {clinic.status === "active" ? (
+                                <DropdownMenuItem
+                                  className="text-orange-600"
+                                  onClick={() => {
+                                    setSelectedClinicForEdit(fullClinic);
+                                    setSuspendDialogOpen(true);
+                                  }}
+                                >
+                                  <AlertTriangle className="h-4 w-4 mr-2" />
+                                  Suspend Access
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  className="text-green-600"
+                                  onClick={() => {
+                                    toggleSuspensionMutation.mutate({
+                                      clinicId: fullClinic.id,
+                                      suspend: false,
+                                    });
+                                  }}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Activate Clinic
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => {
@@ -646,58 +753,71 @@ export default function SuperAdmin() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Clinic</TableHead>
-                    <TableHead>Tier</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Monthly Revenue</TableHead>
-                    <TableHead>Next Billing</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clinics.map((clinic) => {
-                    const tier = clinic.subscription_tier || "starter";
-                    const revenue = tier === "professional" ? 15000 : tier === "enterprise" ? 0 : tier === "starter" ? 5000 : 0;
-                    return (
-                      <TableRow key={clinic.id}>
-                        <TableCell className="font-medium">{clinic.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {tier.charAt(0).toUpperCase() + tier.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={clinic.subscription_status === "active" ? "default" : "secondary"}>
-                            {clinic.subscription_status || "active"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          {tier === "enterprise" ? "Custom" : `KES ${revenue.toLocaleString()}`}
-                        </TableCell>
-                        <TableCell>
-                          {format(new Date(new Date().setMonth(new Date().getMonth() + 1)), "MMM d, yyyy")}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedClinicForEdit(clinic);
-                              setSubscriptionDialogOpen(true);
-                            }}
-                          >
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            Manage
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              {clinicsLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading subscriptions...</p>
+                </div>
+              ) : clinics.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No clinics found. Create your first clinic to get started.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Clinic</TableHead>
+                      <TableHead>Tier</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Monthly Revenue</TableHead>
+                      <TableHead>Next Billing</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clinics.map((clinic) => {
+                      const tier = clinic.subscription_tier || "starter";
+                      const revenue = tier === "professional" ? 15000 : tier === "enterprise" ? 0 : tier === "starter" ? 5000 : 0;
+                      return (
+                        <TableRow key={clinic.id}>
+                          <TableCell className="font-medium">{clinic.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={clinic.subscription_status === "active" ? "default" : "secondary"}>
+                              {clinic.subscription_status || "active"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {tier === "enterprise" ? "Custom" : `KES ${revenue.toLocaleString()}`}
+                          </TableCell>
+                          <TableCell>
+                            {clinic.subscription_end_date 
+                              ? format(new Date(clinic.subscription_end_date), "MMM d, yyyy")
+                              : format(new Date(new Date().setMonth(new Date().getMonth() + 1)), "MMM d, yyyy")
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedClinicForEdit(clinic);
+                                setSubscriptionDialogOpen(true);
+                              }}
+                            >
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Manage
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -745,6 +865,60 @@ export default function SuperAdmin() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete Clinic
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend Clinic Access</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will block all users from accessing{" "}
+              <span className="font-bold">{selectedClinicForEdit?.name}</span> until you
+              reactivate it. Users will see a suspension message when they try to access the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="suspension-message">
+                Custom Message (Optional)
+              </Label>
+              <Textarea
+                id="suspension-message"
+                placeholder="e.g., Payment overdue. Please contact tech@zahaniflow.com to restore access."
+                value={suspensionMessage}
+                onChange={(e) => setSuspensionMessage(e.target.value)}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                This message will be displayed to users when they try to access the system.
+              </p>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setSelectedClinicForEdit(null);
+                setSuspensionMessage("");
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedClinicForEdit) {
+                  toggleSuspensionMutation.mutate({
+                    clinicId: selectedClinicForEdit.id,
+                    suspend: true,
+                    message: suspensionMessage || undefined,
+                  });
+                }
+              }}
+              className="bg-orange-600 text-white hover:bg-orange-700"
+            >
+              Suspend Clinic
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

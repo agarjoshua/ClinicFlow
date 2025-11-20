@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { useClinic, ClinicProvider } from "@/contexts/ClinicContext";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Crown } from "lucide-react";
+import { SubscriptionOverlay } from "@/components/subscription-overlay";
 
 // Header component with clinic details
 function Header({ userData, userRole }: { userData: any; userRole: string | null }) {
@@ -95,6 +96,7 @@ import BillingPage from "@/pages/billing";
 import OrganizationProfilePage from "@/pages/organization-profile";
 import RemindersPage from "@/pages/reminders";
 import SuperAdmin from "@/pages/superadmin";
+import SubscriptionSettings from "@/pages/subscription-settings";
 import NotFound from "@/pages/not-found";
 
 function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadmin" | null }) {
@@ -131,6 +133,7 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadm
       <Route path="/onboarding" component={ClinicOnboardingPage} />
       <Route path="/team" component={TeamManagementPage} />
       <Route path="/subscription" component={SubscriptionPage} />
+      <Route path="/settings/subscription" component={SubscriptionSettings} />
       <Route path="/billing" component={BillingPage} />
       <Route path="/organization" component={OrganizationProfilePage} />
       <Route path="/reminders" component={RemindersPage} />
@@ -335,6 +338,7 @@ function AppContent() {
                   </main>
                 </div>
               </div>
+              {userRole !== "superadmin" && <SubscriptionOverlay />}
             </SidebarProvider>
           ) : (
             <Router userRole={userRole} />
