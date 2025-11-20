@@ -505,28 +505,34 @@ export default function Procedures() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureStatus)}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="scheduled">
-            <Clock className="w-4 h-4 mr-2" />
-            Scheduled
-          </TabsTrigger>
-          <TabsTrigger value="done">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Completed
-          </TabsTrigger>
-          <TabsTrigger value="cancelled">
-            <XCircle className="w-4 h-4 mr-2" />
-            Cancelled
-          </TabsTrigger>
-          <TabsTrigger value="new">
-            <Scissors className="w-4 h-4 mr-2" />
-            Schedule New
-          </TabsTrigger>
-        </TabsList>
+        <div className="mb-6 pb-4 border-b sm:border-0 sm:pb-0 sm:mb-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+            <TabsTrigger value="scheduled" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">Sched</span>
+              <span className="hidden sm:inline">Scheduled</span>
+            </TabsTrigger>
+            <TabsTrigger value="done" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">Done</span>
+              <span className="hidden sm:inline">Completed</span>
+            </TabsTrigger>
+            <TabsTrigger value="cancelled" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">Cancel</span>
+              <span className="hidden sm:inline">Cancelled</span>
+            </TabsTrigger>
+            <TabsTrigger value="new" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <Scissors className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">New</span>
+              <span className="hidden sm:inline">Schedule New</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Procedure Lists */}
         {(["scheduled", "done", "cancelled"] as ProcedureStatus[]).map((status) => (
-          <TabsContent key={status} value={status} className="space-y-3">
+          <TabsContent key={status} value={status} className="space-y-3 mt-0">
             {isLoading ? (
               <Card>
                 <CardContent className="p-6">
@@ -574,14 +580,14 @@ export default function Procedures() {
             </p>
             <Popover open={diagnosisSearchOpen} onOpenChange={setDiagnosisSearchOpen}>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[300px] justify-between">
+                <Button variant="outline" className="w-full sm:w-[300px] justify-between">
                   {selectedCase 
                     ? `${selectedCase.patient?.firstName} ${selectedCase.patient?.lastName}`
                     : "Search diagnosis to schedule..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0">
+              <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start">
                 <Command>
                   <CommandInput 
                     placeholder="Search by patient name or diagnosis..." 
@@ -672,7 +678,7 @@ export default function Procedures() {
         setScheduleDialogOpen(open);
         if (!open) resetForm();
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Scissors className="w-5 h-5" />
@@ -723,7 +729,7 @@ export default function Procedures() {
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
+                <PopoverContent className="w-[calc(100vw-2rem)] sm:w-full p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Search doctors..." />
                     <CommandList>
@@ -753,7 +759,7 @@ export default function Procedures() {
               </Popover>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="scheduledDate">Scheduled Date *</Label>
                 <Input
@@ -823,7 +829,7 @@ export default function Procedures() {
 
       {/* Procedure Details Dialog */}
       <Dialog open={procedureDialogOpen} onOpenChange={setProcedureDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Procedure Details</DialogTitle>
           </DialogHeader>
@@ -832,7 +838,7 @@ export default function Procedures() {
             <div className="space-y-4">
               <Card>
                 <CardContent className="p-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="font-medium text-gray-600">Patient</p>
                       <p>{selectedProcedure.patient?.firstName} {selectedProcedure.patient?.lastName}</p>

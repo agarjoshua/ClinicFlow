@@ -154,25 +154,25 @@ export default function RemindersPage() {
   const upcomingReminders = getUpcomingReminders();
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Bell className="h-8 w-8" />
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <Bell className="h-6 w-6 sm:h-8 sm:w-8" />
             Reminders
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Manage anniversaries, license renewals, and custom reminders
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openNewDialog}>
+            <Button onClick={openNewDialog} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               New Reminder
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingReminder ? 'Edit' : 'Create'} Reminder</DialogTitle>
               <DialogDescription>
@@ -320,7 +320,7 @@ export default function RemindersPage() {
           <CardTitle>All Reminders</CardTitle>
           <CardDescription>Manage all your reminders in one place</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

@@ -187,11 +187,11 @@ export default function TeamManagementPage() {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Team</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-semibold">Team</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Manage consultants, assistants and other staff in your clinic.
           </p>
         </div>
@@ -223,13 +223,13 @@ export default function TeamManagementPage() {
                   {members.map((m) => (
                     <div
                       key={m.id}
-                      className="flex items-center justify-between rounded-md border bg-card px-3 py-2"
+                      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-md border bg-card px-3 py-3 sm:py-2"
                     >
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{m.fullName ?? m.email}</div>
-                        <div className="text-xs text-muted-foreground">{m.email}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{m.fullName ?? m.email}</div>
+                        <div className="text-xs text-muted-foreground truncate">{m.email}</div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between sm:justify-end gap-2">
                         <Badge variant="outline" className="text-xs capitalize">
                           {m.role.toLowerCase()}
                         </Badge>
@@ -273,15 +273,15 @@ export default function TeamManagementPage() {
                   {invitations.map((inv) => (
                     <div
                       key={inv.id}
-                      className="flex items-center justify-between rounded-md border bg-card px-3 py-2"
+                      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-md border bg-card px-3 py-3 sm:py-2"
                     >
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{inv.email}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{inv.email}</div>
                         <div className="text-xs text-muted-foreground">
                           Sent {formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true })}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs capitalize">
                           {inv.role}
                         </Badge>
@@ -325,7 +325,7 @@ export default function TeamManagementPage() {
 
       {/* Delete Member Confirmation Dialog */}
       <AlertDialog open={!!memberToDelete} onOpenChange={() => setMemberToDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[95vw] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Team Member</AlertDialogTitle>
             <AlertDialogDescription>
@@ -347,7 +347,7 @@ export default function TeamManagementPage() {
 
       {/* Cancel Invitation Confirmation Dialog */}
       <AlertDialog open={!!invitationToCancel} onOpenChange={() => setInvitationToCancel(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[95vw] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Invitation</AlertDialogTitle>
             <AlertDialogDescription>

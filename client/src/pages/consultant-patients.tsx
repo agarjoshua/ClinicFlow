@@ -700,54 +700,62 @@ export default function ConsultantPatients() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Patient Management</h1>
-          <p className="text-sm text-muted-foreground">Manage patients, inpatients, and book appointments</p>
+          <h1 className="text-xl sm:text-2xl font-semibold">Patient Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage patients, inpatients, and book appointments</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={exportToCSV}>
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+          <Button variant="outline" onClick={exportToCSV} className="flex-1 sm:flex-none">
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            <span className="sm:inline">Export CSV</span>
           </Button>
-          <Button onClick={handleOpenCreatePatient}>
+          <Button onClick={handleOpenCreatePatient} className="flex-1 sm:flex-none">
             <UserPlus className="w-4 h-4 mr-2" />
-            Add Patient
+            <span className="sm:inline">Add Patient</span>
           </Button>
         </div>
       </div>
 
       {/* Tabs for All/Inpatient/Outpatient */}
       <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
-          <TabsTrigger value="all" className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            All Patients ({patients.length})
-          </TabsTrigger>
-          <TabsTrigger value="inpatient" className="flex items-center gap-2">
-            <Bed className="w-4 h-4" />
-            Inpatients ({inpatients.length})
-          </TabsTrigger>
-          <TabsTrigger value="outpatient" className="flex items-center gap-2">
-            <Activity className="w-4 h-4" />
-            Outpatients ({patients.length - inpatients.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="mb-6 pb-4 border-b sm:border-0 sm:pb-0 sm:mb-4">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsTrigger value="all" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <User className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">All</span>
+              <span className="hidden sm:inline">All Patients</span>
+              <span className="text-[8px] sm:text-xs">({patients.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="inpatient" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <Bed className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">In</span>
+              <span className="hidden sm:inline">Inpatients</span>
+              <span className="text-[8px] sm:text-xs">({inpatients.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="outpatient" className="text-[10px] sm:text-sm px-1 py-2 sm:px-4 sm:py-2.5 flex-col sm:flex-row gap-0.5 sm:gap-2 h-auto">
+              <Activity className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="sm:hidden">Out</span>
+              <span className="hidden sm:inline">Outpatients</span>
+              <span className="text-[8px] sm:text-xs">({patients.length - inpatients.length})</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value={viewMode} className="space-y-4">
           {/* Search and Sort */}
           <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-3">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by name or patient number..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-10"
                   />
                 </div>
                 <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[200px] h-10">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1058,7 +1066,7 @@ export default function ConsultantPatients() {
 
       {/* Create/Edit Patient Dialog */}
       <Dialog open={patientDialogOpen} onOpenChange={setPatientDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingPatient ? "Edit Patient" : "Add New Patient"}</DialogTitle>
             <DialogDescription>
@@ -1282,7 +1290,7 @@ export default function ConsultantPatients() {
 
       {/* Book Appointment Dialog */}
       <Dialog open={bookingDialogOpen} onOpenChange={setBookingDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Book Appointment</DialogTitle>
             <DialogDescription>
@@ -1375,7 +1383,7 @@ export default function ConsultantPatients() {
 
       {/* Care History Dialog */}
       <Dialog open={careDialogOpen} onOpenChange={setCareDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Care History & Management</DialogTitle>
             <DialogDescription>

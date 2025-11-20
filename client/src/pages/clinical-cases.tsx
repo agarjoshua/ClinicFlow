@@ -114,15 +114,15 @@ export default function ClinicalCases() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 sm:p-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Clinical Case Management</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Clinical Case Management</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
             Manage patient clinical cases and treatment plans
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/diagnoses">
             <FileText className="w-4 h-4 mr-2" />
             New Diagnosis
@@ -132,13 +132,13 @@ export default function ClinicalCases() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Activity className="w-5 h-5" />
               Clinical Cases
             </CardTitle>
-            <div className="flex gap-3">
-              <div className="relative w-64">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder="Search patients or diagnosis..."
@@ -148,7 +148,7 @@ export default function ClinicalCases() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,13 +165,14 @@ export default function ClinicalCases() {
             <div className="text-center py-8 text-gray-500">Loading cases...</div>
           ) : filteredCases && filteredCases.length > 0 ? (
             <Tabs defaultValue="list" className="w-full">
-              <TabsList>
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="list">List View</TabsTrigger>
                 <TabsTrigger value="grid">Grid View</TabsTrigger>
               </TabsList>
 
               <TabsContent value="list">
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Patient</TableHead>
@@ -225,6 +226,7 @@ export default function ClinicalCases() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </TabsContent>
 
               <TabsContent value="grid">

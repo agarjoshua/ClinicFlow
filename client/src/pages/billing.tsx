@@ -50,15 +50,15 @@ export default function BillingPage() {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-4 sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Billing & Invoices</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-semibold">Billing & Invoices</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             View your payment history and download invoices
           </p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" className="w-full sm:w-auto">
           <FileText className="mr-2 h-4 w-4" />
           Payment Methods
         </Button>
@@ -84,13 +84,13 @@ export default function BillingPage() {
               {invoices.map((invoice) => (
                 <div
                   key={invoice.id}
-                  className="flex items-center justify-between rounded-md border bg-card px-4 py-3"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-md border bg-card px-3 sm:px-4 py-3"
                 >
-                  <div className="flex items-center gap-4">
-                    <FileText className="h-8 w-8 text-muted-foreground" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
+                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                    <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm sm:text-base">
                           KES {invoice.amount.toLocaleString()}
                         </span>
                         <Badge
@@ -106,18 +106,18 @@ export default function BillingPage() {
                           {invoice.status}
                         </Badge>
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground mt-1">
                         Issued {format(new Date(invoice.issuedAt), "MMM dd, yyyy")}
                         {invoice.paidAt && ` • Paid ${format(new Date(invoice.paidAt), "MMM dd, yyyy")}`}
                       </div>
                       {invoice.mpesaReceiptNumber && (
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
                           M-Pesa: {invoice.mpesaReceiptNumber}
                         </div>
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" className="self-end sm:self-auto">
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>

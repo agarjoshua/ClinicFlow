@@ -155,18 +155,18 @@ export default function Patients() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="flex flex-col gap-6 p-4 sm:p-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-semibold">Patient Records</h1>
-            <Badge variant="secondary" className="text-sm font-medium">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-semibold">Patient Records</h1>
+            <Badge variant="secondary" className="text-xs sm:text-sm font-medium">
               Total: {filteredPatients.length}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">Manage and view all patient information</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage and view all patient information</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
           <Button variant="outline" onClick={exportToCSV} data-testid="button-export-csv">
             <Download className="w-4 h-4 mr-2" />
             Export CSV
@@ -179,28 +179,30 @@ export default function Patients() {
       </div>
 
       <Card>
-        <CardContent className="p-6">
-          <div className="flex gap-4 mb-6 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, ID, or contact..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search-patients"
-              />
+        <CardContent className="p-4 sm:p-6">
+          <div className="mb-6 pb-4 border-b sm:border-0 sm:pb-0 sm:mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, ID, or contact..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-10 sm:h-10"
+                  data-testid="input-search-patients"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px] h-10" data-testid="select-status-filter">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Patients</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="discharged">Discharged</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Patients</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="discharged">Discharged</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {filteredPatients.length === 0 ? (

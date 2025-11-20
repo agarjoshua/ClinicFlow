@@ -51,39 +51,39 @@ export default function SubscriptionPage() {
   const currentTier = clinic?.subscriptionTier || "starter";
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Subscription</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-semibold">Subscription</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Manage your clinic's subscription plan
         </p>
       </div>
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Current Plan</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">Current Plan</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold capitalize">{currentTier}</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-semibold capitalize">{currentTier}</h3>
                 <Badge variant={clinic?.subscriptionStatus === "active" ? "default" : "secondary"} className="capitalize">
                   {clinic?.subscriptionStatus || "unknown"}
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 {PLANS[currentTier as keyof typeof PLANS]?.price}/month
               </p>
             </div>
             {currentTier !== "enterprise" && (
-              <Button variant="outline">Upgrade Plan</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Upgrade Plan</Button>
             )}
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Object.entries(PLANS).map(([key, plan]) => {
           const Icon = plan.icon;
           const isCurrentPlan = key === currentTier;
@@ -92,15 +92,15 @@ export default function SubscriptionPage() {
             <Card key={key} className={isCurrentPlan ? "border-blue-600 ring-2 ring-blue-600" : ""}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <Icon className="h-8 w-8 text-blue-600" />
+                  <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
                   {isCurrentPlan && (
                     <Badge variant="default">Current</Badge>
                   )}
                 </div>
-                <CardTitle className="mt-4">{plan.name}</CardTitle>
+                <CardTitle className="mt-4 text-lg sm:text-xl">{plan.name}</CardTitle>
                 <CardDescription>
-                  <span className="text-2xl font-bold text-foreground">{plan.price}</span>
-                  {plan.price !== "Custom" && <span className="text-sm">/month</span>}
+                  <span className="text-xl sm:text-2xl font-bold text-foreground">{plan.price}</span>
+                  {plan.price !== "Custom" && <span className="text-xs sm:text-sm">/month</span>}
                 </CardDescription>
               </CardHeader>
               <CardContent>
