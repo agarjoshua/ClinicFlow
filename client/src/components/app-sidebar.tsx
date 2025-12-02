@@ -150,8 +150,8 @@ const superadminMenuItems = [
 
 const comingSoonItems = [
   {
-    title: "NHIF Patient Integration",
-    description: "Link patients with NHIF records",
+    title: "SHIF Patient Integration",
+    description: "Link patients with SHIF records",
   },
   {
     title: "Payment Integration",
