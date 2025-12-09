@@ -1,4 +1,4 @@
-import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble, UsersRound, CreditCard, Crown, Bell, Building2, Sparkles } from "lucide-react";
+import { Home, Users, FileText, UserCheck, Activity, Calendar, ClipboardList, Stethoscope, Hospital, BedDouble, UsersRound, CreditCard, Crown, Bell, Building2, Sparkles, Database } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -137,6 +137,11 @@ const settingsMenuItems = [
     title: "Billing",
     url: "/billing",
     icon: CreditCard,
+  },
+  {
+    title: "Data Recovery",
+    url: "/data-recovery",
+    icon: Database,
   },
 ];
 

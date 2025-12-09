@@ -97,6 +97,7 @@ import OrganizationProfilePage from "@/pages/organization-profile";
 import RemindersPage from "@/pages/reminders";
 import SuperAdmin from "@/pages/superadmin";
 import SubscriptionSettings from "@/pages/subscription-settings";
+import DataRecovery from "@/pages/data-recovery";
 import NotFound from "@/pages/not-found";
 
 function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadmin" | null }) {
@@ -137,6 +138,7 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadm
       <Route path="/billing" component={BillingPage} />
       <Route path="/organization" component={OrganizationProfilePage} />
       <Route path="/reminders" component={RemindersPage} />
+      <Route path="/data-recovery" component={DataRecovery} />
       <Route path="/superadmin" component={SuperAdmin} />
       <Route path="/accept-invitation" component={AcceptInvitationPage} />
       <Route path="/auth" component={AuthPage} />

@@ -72,6 +72,7 @@ import {
   Plus,
   Upload,
   Hospital,
+  CheckCircle,
 } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import { format, differenceInYears } from "date-fns";
@@ -142,6 +143,50 @@ export default function PatientDetail() {
     dischargeSummary: "",
     notes: "",
   });
+
+  // Local storage key for auto-save
+  const storageKey = `draft-case-${patientId}`;
+
+  // Load draft from local storage on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem(storageKey);
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setCaseSymptoms(draft.symptoms || "");
+        setCaseDiagnosisNotes(draft.diagnosisNotes || "");
+        setCaseNeurologicalExam(draft.neurologicalExam || "");
+        setCaseImagingFindings(draft.imagingFindings || "");
+        setCaseMedications(draft.medications || "");
+        setCaseTreatmentPlan(draft.treatmentPlan || "");
+        
+        toast({
+          title: "Draft Restored",
+          description: "Your previous work has been recovered",
+        });
+      } catch (e) {
+        console.error("Failed to restore draft:", e);
+      }
+    }
+  }, [patientId]);
+
+  // Auto-save to local storage whenever form data changes
+  useEffect(() => {
+    if (caseSymptoms || caseDiagnosisNotes || caseNeurologicalExam || 
+        caseImagingFindings || caseMedications || caseTreatmentPlan) {
+      const draft = {
+        symptoms: caseSymptoms,
+        diagnosisNotes: caseDiagnosisNotes,
+        neurologicalExam: caseNeurologicalExam,
+        imagingFindings: caseImagingFindings,
+        medications: caseMedications,
+        treatmentPlan: caseTreatmentPlan,
+        lastSaved: new Date().toISOString(),
+      };
+      localStorage.setItem(storageKey, JSON.stringify(draft));
+    }
+  }, [caseSymptoms, caseDiagnosisNotes, caseNeurologicalExam, 
+      caseImagingFindings, caseMedications, caseTreatmentPlan, storageKey]);
 
   // Smart back navigation
   const handleBack = () => {
@@ -632,7 +677,7 @@ export default function PatientDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", clinic?.id, patientId] });
       setAddMediaDialogOpen(false);
       setNewMediaFile(null);
       setNewMediaLink("");
@@ -680,7 +725,7 @@ export default function PatientDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", clinic?.id, patientId] });
       toast({
         title: "Success",
         description: "Media deleted successfully",
@@ -791,7 +836,7 @@ export default function PatientDetail() {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", clinic?.id, patientId] });
       
       if (documentationMode === 'apoc') {
         // Close create dialog and open APOC wizard
@@ -864,6 +909,8 @@ export default function PatientDetail() {
     setCaseMediaLink("");
     setCaseMediaDescription("");
     setCaseMediaFile(null);
+    // Clear the auto-saved draft
+    localStorage.removeItem(storageKey);
   };
   
   const handleAddCaseMedia = () => {
@@ -2264,18 +2311,24 @@ export default function PatientDetail() {
       <Dialog open={createCaseDialogOpen} onOpenChange={setCreateCaseDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {documentationMode === 'apoc' ? (
-                <>
-                  <FileText className="w-5 h-5 text-indigo-600" />
-                  Create APOC Documentation
-                </>
-              ) : (
-                <>
-                  <Brain className="w-5 h-5" />
-                  Quick Entry Clinical Case
-                </>
-              )}
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {documentationMode === 'apoc' ? (
+                  <>
+                    <FileText className="w-5 h-5 text-indigo-600" />
+                    Create APOC Documentation
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-5 h-5" />
+                    Quick Entry Clinical Case
+                  </>
+                )}
+              </div>
+              <Badge variant="outline" className="text-xs">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Auto-saving
+              </Badge>
             </DialogTitle>
             <DialogDescription>
               Patient: {patient?.firstName} {patient?.lastName} (#{patient?.patientNumber})
@@ -2523,11 +2576,11 @@ export default function PatientDetail() {
               }}
               onComplete={() => {
                 setApocWizardOpen(false);
-                queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+                queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", clinic?.id, patientId] });
               }}
               onCancel={() => {
                 setApocWizardOpen(false);
-                queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", patientId] });
+                queryClient.invalidateQueries({ queryKey: ["patient-clinical-cases", clinic?.id, patientId] });
               }}
             />
           </DialogContent>
