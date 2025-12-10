@@ -424,16 +424,17 @@ export default function ConsultantPatients() {
     },
   });
 
-  // Delete patient mutation
+  // Soft delete patient mutation (archives, doesn't permanently delete)
   const deletePatientMutation = useMutation({
     mutationFn: async (patientId: string) => {
       if (!clinic?.id) {
         throw new Error("No clinic selected.");
       }
       
+      // Soft delete by setting deleted_at timestamp
       const { error } = await supabase
         .from("patients")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", patientId)
         .eq("clinic_id", clinic.id);
       
@@ -442,8 +443,8 @@ export default function ConsultantPatients() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["consultant-patients"] });
       toast({
-        title: "Patient deleted",
-        description: "Patient has been successfully removed.",
+        title: "Patient Archived",
+        description: "Patient has been archived. All data is preserved and recoverable.",
       });
       setDeleteDialogOpen(false);
       setPatientToDelete(null);
@@ -451,7 +452,7 @@ export default function ConsultantPatients() {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete patient",
+        description: error.message || "Failed to archive patient",
         variant: "destructive",
       });
     },
@@ -1266,23 +1267,32 @@ export default function ConsultantPatients() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Patient Dialog */}
+      {/* Archive Patient Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Patient</AlertDialogTitle>
+            <AlertDialogTitle>Archive Patient</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {patientToDelete?.first_name} {patientToDelete?.last_name}? 
-              This action cannot be undone and will remove all associated records.
+              <div className="space-y-2">
+                <p>Are you sure you want to archive {patientToDelete?.first_name} {patientToDelete?.last_name}?</p>
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
+                  <p className="font-medium mb-1">✓ Data is SAFE:</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>All medical records are preserved</li>
+                    <li>Patient will be hidden from active list</li>
+                    <li>Can be restored from Data Recovery page</li>
+                  </ul>
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => patientToDelete && deletePatientMutation.mutate(patientToDelete.id)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-orange-600 hover:bg-orange-700"
             >
-              Delete
+              Archive
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

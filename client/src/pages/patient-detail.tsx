@@ -442,16 +442,17 @@ export default function PatientDetail() {
     },
   });
 
-  // Delete mutation
+  // Soft delete mutation (marks as deleted, doesn't actually remove data)
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!clinic?.id) {
         throw new Error("No clinic selected.");
       }
       
+      // Soft delete by setting deleted_at timestamp
       const { error } = await supabase
         .from("patients")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", patientId)
         .eq("clinic_id", clinic.id);
 
@@ -460,15 +461,15 @@ export default function PatientDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       toast({
-        title: "Success",
-        description: "Patient deleted successfully",
+        title: "Patient Archived",
+        description: "Patient has been archived. Data is preserved and can be recovered from Data Recovery page.",
       });
       setLocation("/patients");
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete patient",
+        description: error.message || "Failed to archive patient",
         variant: "destructive",
       });
     },
@@ -1146,29 +1147,40 @@ export default function PatientDetail() {
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="flex-1 sm:flex-none">
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Patient
+                    Archive Patient
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Patient Record</AlertDialogTitle>
+                    <AlertDialogTitle>Archive Patient Record</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete {fullName}? This action cannot be undone.
-                      {appointments.length > 0 && (
-                        <p className="mt-2 font-medium text-yellow-600">
-                          Warning: This patient has {appointments.length} appointment(s) on record.
-                        </p>
-                      )}
+                      <div className="space-y-2">
+                        <p>Are you sure you want to archive {fullName}?</p>
+                        <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
+                          <p className="font-medium mb-1">✓ Data is SAFE:</p>
+                          <ul className="list-disc list-inside space-y-1 text-xs">
+                            <li>All medical records are preserved</li>
+                            <li>Appointments, diagnoses, and procedures remain intact</li>
+                            <li>Patient will be hidden from active list</li>
+                            <li>Can be restored anytime from Data Recovery page</li>
+                          </ul>
+                        </div>
+                        {appointments.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            This patient has {appointments.length} appointment(s) and {clinicalCases.length} clinical case(s) on record. All will be archived but recoverable.
+                          </p>
+                        )}
+                      </div>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDelete}
-                      className="bg-red-600 hover:bg-red-700"
+                      className="bg-orange-600 hover:bg-orange-700"
                       disabled={deleteMutation.isPending}
                     >
-                      {deleteMutation.isPending ? "Deleting..." : "Delete Patient"}
+                      {deleteMutation.isPending ? "Archiving..." : "Archive Patient"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
