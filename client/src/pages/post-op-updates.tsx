@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { useClinic } from "@/contexts/ClinicContext";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
+import { useFormNavigationGuard } from "@/hooks/useFormNavigationGuard";
+import { SaveIndicator } from "@/components/SaveIndicator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +69,54 @@ export default function PostOpUpdates() {
 
   const { toast } = useToast();
   const { clinic } = useClinic();
+
+  // Form state for persistence
+  const postOpFormState = {
+    dayPostOp,
+    gcsScore,
+    motorUR,
+    motorUL,
+    motorLR,
+    motorLL,
+    bloodPressure,
+    pulse,
+    temperature,
+    respiratoryRate,
+    spo2,
+    currentMedications,
+    improvementNotes,
+    newComplaints,
+    neurologicalExam,
+    woundStatus,
+  };
+
+  // Form persistence
+  const postOpPersistence = useFormPersistence({
+    storageKey: `draft-postop-${selectedUpdate?.procedure_id || 'none'}-${editMode ? selectedUpdate?.id : 'new'}`,
+    formState: postOpFormState,
+    enabled: updateDialogOpen,
+    onRestore: (data) => {
+      setDayPostOp(data.dayPostOp || 1);
+      setGcsScore(data.gcsScore || 15);
+      setMotorUR(data.motorUR || 5);
+      setMotorUL(data.motorUL || 5);
+      setMotorLR(data.motorLR || 5);
+      setMotorLL(data.motorLL || 5);
+      setBloodPressure(data.bloodPressure || "");
+      setPulse(data.pulse || "");
+      setTemperature(data.temperature || "");
+      setRespiratoryRate(data.respiratoryRate || "");
+      setSpo2(data.spo2 || "");
+      setCurrentMedications(data.currentMedications || "");
+      setImprovementNotes(data.improvementNotes || "");
+      setNewComplaints(data.newComplaints || "");
+      setNeurologicalExam(data.neurologicalExam || "");
+      setWoundStatus(data.woundStatus || "");
+    },
+  });
+
+  // Navigation guard
+  useFormNavigationGuard(postOpPersistence.hasUnsavedChanges && updateDialogOpen);
 
   // Fetch active post-op procedures (done but not discharged)
   const { data: allPostOpUpdates = [], isLoading } = useQuery({
@@ -199,6 +250,7 @@ export default function PostOpUpdates() {
         title: "Success",
         description: editMode ? "Post-op update saved" : "Post-op update recorded",
       });
+      postOpPersistence.clearDraft();
       setUpdateDialogOpen(false);
       resetForm();
     },
@@ -502,10 +554,19 @@ export default function PostOpUpdates() {
       <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editMode ? "Edit Post-Op Update" : "Record Post-Op Update"}</DialogTitle>
-            <DialogDescription>
-              Document patient's post-operative progress and vital signs
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>{editMode ? "Edit Post-Op Update" : "Record Post-Op Update"}</DialogTitle>
+                <DialogDescription>
+                  Document patient's post-operative progress and vital signs
+                </DialogDescription>
+              </div>
+              <SaveIndicator
+                isSaving={postOpPersistence.isSaving}
+                lastSavedAt={postOpPersistence.lastSavedAt}
+                className="text-xs"
+              />
+            </div>
           </DialogHeader>
 
           <div className="space-y-4">

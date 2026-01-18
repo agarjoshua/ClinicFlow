@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { useClinic } from "@/contexts/ClinicContext";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
+import { useFormNavigationGuard } from "@/hooks/useFormNavigationGuard";
+import { SaveIndicator } from "@/components/SaveIndicator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +121,26 @@ export default function ConsultantPatients() {
     priorityReason: "",
     triageNotes: "",
   });
+
+  // Form persistence for patient form
+  const patientPersistence = useFormPersistence({
+    storageKey: `draft-patient-${currentUser?.id || 'unknown'}-${editingPatient?.id || 'new'}`,
+    formState: patientForm,
+    enabled: patientDialogOpen,
+    onRestore: (data) => setPatientForm(data),
+  });
+
+  // Form persistence for booking form
+  const bookingPersistence = useFormPersistence({
+    storageKey: `draft-booking-${currentUser?.id || 'unknown'}-${selectedPatientForBooking?.id || 'new'}`,
+    formState: bookingForm,
+    enabled: bookingDialogOpen,
+    onRestore: (data) => setBookingForm(data),
+  });
+
+  // Navigation guards
+  useFormNavigationGuard(patientPersistence.hasUnsavedChanges && patientDialogOpen);
+  useFormNavigationGuard(bookingPersistence.hasUnsavedChanges && bookingDialogOpen);
 
   // Fetch current user
   const { data: currentUser } = useQuery({
@@ -360,6 +383,7 @@ export default function ConsultantPatients() {
         title: "Patient created",
         description: "Patient has been successfully registered.",
       });
+      patientPersistence.clearDraft();
       setPatientDialogOpen(false);
       resetPatientForm();
     },
@@ -411,6 +435,7 @@ export default function ConsultantPatients() {
         title: "Patient updated",
         description: "Patient information has been successfully updated.",
       });
+      patientPersistence.clearDraft();
       setPatientDialogOpen(false);
       setEditingPatient(null);
       resetPatientForm();
@@ -501,6 +526,7 @@ export default function ConsultantPatients() {
         title: "Appointment booked",
         description: "Patient appointment has been successfully scheduled.",
       });
+      bookingPersistence.clearDraft();
       setBookingDialogOpen(false);
       setSelectedPatientForBooking(null);
       resetBookingForm();
@@ -1069,10 +1095,19 @@ export default function ConsultantPatients() {
       <Dialog open={patientDialogOpen} onOpenChange={setPatientDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingPatient ? "Edit Patient" : "Add New Patient"}</DialogTitle>
-            <DialogDescription>
-              {editingPatient ? "Update patient information" : "Enter patient information to create a new record"}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>{editingPatient ? "Edit Patient" : "Add New Patient"}</DialogTitle>
+                <DialogDescription>
+                  {editingPatient ? "Update patient information" : "Enter patient information to create a new record"}
+                </DialogDescription>
+              </div>
+              <SaveIndicator
+                isSaving={patientPersistence.isSaving}
+                lastSavedAt={patientPersistence.lastSavedAt}
+                className="text-xs"
+              />
+            </div>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -1302,10 +1337,19 @@ export default function ConsultantPatients() {
       <Dialog open={bookingDialogOpen} onOpenChange={setBookingDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Book Appointment</DialogTitle>
-            <DialogDescription>
-              Schedule an appointment for {selectedPatientForBooking?.first_name} {selectedPatientForBooking?.last_name}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Book Appointment</DialogTitle>
+                <DialogDescription>
+                  Schedule an appointment for {selectedPatientForBooking?.first_name} {selectedPatientForBooking?.last_name}
+                </DialogDescription>
+              </div>
+              <SaveIndicator
+                isSaving={bookingPersistence.isSaving}
+                lastSavedAt={bookingPersistence.lastSavedAt}
+                className="text-xs"
+              />
+            </div>
           </DialogHeader>
 
           <div className="space-y-4">

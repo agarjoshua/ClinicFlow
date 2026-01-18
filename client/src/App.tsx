@@ -11,6 +11,7 @@ import { useClinic, ClinicProvider } from "@/contexts/ClinicContext";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Crown } from "lucide-react";
 import { SubscriptionOverlay } from "@/components/subscription-overlay";
+import { DraftCleanupService } from "@/lib/draftCleanup";
 
 // Header component with clinic details
 function Header({ userData, userRole }: { userData: any; userRole: string | null }) {
@@ -159,6 +160,11 @@ function AppContent() {
   const [userRole, setUserRole] = useState<"consultant" | "assistant" | "superadmin" | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize draft cleanup on app startup
+  useEffect(() => {
+    DraftCleanupService.initializeAutoCleanup();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

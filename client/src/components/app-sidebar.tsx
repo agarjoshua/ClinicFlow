@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
+import { DraftCleanupService } from "@/lib/draftCleanup";
 
 const consultantMenuItems = [
   {
@@ -184,6 +185,10 @@ export function AppSidebar({ userRole = null, userData }: AppSidebarProps) {
   const displayRole = userRole === "consultant" ? "Consultant" : "Assistant";
 
   const handleLogout = async () => {
+    // Clear all user drafts on logout for security
+    if (userData?.id) {
+      DraftCleanupService.clearUserDrafts(userData.id);
+    }
     await supabase.auth.signOut();
     window.location.href = "/auth";
   };

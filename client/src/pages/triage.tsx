@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { useClinic } from "@/contexts/ClinicContext";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
+import { useFormNavigationGuard } from "@/hooks/useFormNavigationGuard";
+import { SaveIndicator } from "@/components/SaveIndicator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +68,36 @@ export default function Triage() {
   const [oxygenSaturation, setOxygenSaturation] = useState("");
   
   const { toast } = useToast();
+
+  // Form state for persistence
+  const triageFormState = {
+    triageNotes,
+    isPriority,
+    priorityReason,
+    temperature,
+    bloodPressure,
+    heartRate,
+    oxygenSaturation,
+  };
+
+  // Form persistence
+  const triagePersistence = useFormPersistence({
+    storageKey: `draft-triage-${selectedAppointment?.id || 'none'}`,
+    formState: triageFormState,
+    enabled: triageDialogOpen,
+    onRestore: (data) => {
+      setTriageNotes(data.triageNotes || "");
+      setIsPriority(data.isPriority || false);
+      setPriorityReason(data.priorityReason || "");
+      setTemperature(data.temperature || "");
+      setBloodPressure(data.bloodPressure || "");
+      setHeartRate(data.heartRate || "");
+      setOxygenSaturation(data.oxygenSaturation || "");
+    },
+  });
+
+  // Navigation guard
+  useFormNavigationGuard(triagePersistence.hasUnsavedChanges && triageDialogOpen);
 
   // Fetch confirmed appointments (ready for triage)
   const { data: appointments = [], isLoading } = useQuery({
@@ -226,6 +259,7 @@ export default function Triage() {
         title: "Success",
         description: "Triage completed successfully",
       });
+      triagePersistence.clearDraft();
       setTriageDialogOpen(false);
       resetTriageForm();
     },
@@ -427,12 +461,21 @@ export default function Triage() {
       <Dialog open={triageDialogOpen} onOpenChange={setTriageDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Triage Assessment</DialogTitle>
-            <DialogDescription>
-              Complete triage for{" "}
-              {selectedAppointment?.patient?.firstName}{" "}
-              {selectedAppointment?.patient?.lastName}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Triage Assessment</DialogTitle>
+                <DialogDescription>
+                  Complete triage for{" "}
+                  {selectedAppointment?.patient?.firstName}{" "}
+                  {selectedAppointment?.patient?.lastName}
+                </DialogDescription>
+              </div>
+              <SaveIndicator
+                isSaving={triagePersistence.isSaving}
+                lastSavedAt={triagePersistence.lastSavedAt}
+                className="text-xs"
+              />
+            </div>
           </DialogHeader>
 
           {selectedAppointment && (
