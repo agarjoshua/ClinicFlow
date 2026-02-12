@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
+console.log('🟢🟢🟢 useFormPersistence.ts MODULE LOADED - CODE IS UPDATED 🟢🟢🟢');
+
 interface UseFormPersistenceOptions<T> {
   storageKey: string;
   formState: T;
@@ -36,6 +38,8 @@ export function useFormPersistence<T extends Record<string, any>>({
   const [isSaving, setIsSaving] = useState(false);
   const hasRestoredRef = useRef(false);
   const saveTimerRef = useRef<NodeJS.Timeout>();
+  const initialFormStateRef = useRef<T | null>(null);
+  const [isFormDirty, setIsFormDirty] = useState(false);
 
   // Filter out excluded fields
   const getFilteredFormState = (state: T): Partial<T> => {
@@ -66,6 +70,8 @@ export function useFormPersistence<T extends Record<string, any>>({
       const savedDraft = localStorage.getItem(storageKey);
       if (!savedDraft) {
         hasRestoredRef.current = true;
+        // Capture initial state when there's no draft
+        initialFormStateRef.current = JSON.parse(JSON.stringify(formState));
         return;
       }
 
@@ -78,6 +84,8 @@ export function useFormPersistence<T extends Record<string, any>>({
       if (daysSinceSave > expirationDays) {
         localStorage.removeItem(storageKey);
         hasRestoredRef.current = true;
+        // Capture initial state when draft is expired
+        initialFormStateRef.current = JSON.parse(JSON.stringify(formState));
         return;
       }
 
@@ -85,6 +93,7 @@ export function useFormPersistence<T extends Record<string, any>>({
       if (onRestore) {
         onRestore(draft.formData);
         setLastSavedAt(savedDate);
+        setIsFormDirty(true); // Restored draft means the form has unsaved changes
         toast({
           title: 'Draft Restored',
           description: `Your previous work from ${savedDate.toLocaleString()} has been restored.`,
@@ -93,68 +102,97 @@ export function useFormPersistence<T extends Record<string, any>>({
     } catch (error) {
       console.error('Failed to restore draft:', error);
       localStorage.removeItem(storageKey);
+      // Capture initial state on error
+      initialFormStateRef.current = JSON.parse(JSON.stringify(formState));
     } finally {
       hasRestoredRef.current = true;
     }
-  }, [storageKey, enabled, expirationDays, onRestore, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, enabled]);
 
   // Auto-save form state
   useEffect(() => {
-    if (!enabled || !hasRestoredRef.current) return;
+    console.log('[Form Persistence] Effect disabled for testing');
+    return; // TEMPORARILY DISABLED
+    
+    // if (!enabled || !hasRestoredRef.current) return;
 
-    // Clear existing timer
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
+    // // Capture initial state once form is ready
+    // if (initialFormStateRef.current === null) {
+    //   initialFormStateRef.current = JSON.parse(JSON.stringify(formState));
+    //   return;
+    // }
 
-    // Only save if there's actual data
-    if (!hasFormData(formState)) {
-      return;
-    }
+    // // Check if form has been modified from initial state
+    // const formHasChanged = JSON.stringify(getFilteredFormState(formState)) !== 
+    //                        JSON.stringify(getFilteredFormState(initialFormStateRef.current));
+    
+    // if (formHasChanged !== isFormDirty) {
+    //   console.log(`[Form Persistence] Dirty state changed: ${formHasChanged}`, {
+    //     storageKey,
+    //     formHasChanged,
+    //     hasData: hasFormData(formState)
+    //   });
+    // }
+    // setIsFormDirty(formHasChanged);
 
-    setIsSaving(true);
+    // // Only save if there's actual data and form is dirty
+    // if (!hasFormData(formState) || !formHasChanged) {
+    //   return;
+    // }
 
-    saveTimerRef.current = setTimeout(() => {
-      try {
-        const draft: StoredDraft<T> = {
-          formData: getFilteredFormState(formState) as T,
-          metadata: {
-            savedAt: new Date().toISOString(),
-            version: '1.0',
-            formType: storageKey.split('-')[1] || 'unknown',
-          },
-        };
+    // // Clear existing timer
+    // if (saveTimerRef.current) {
+    //   clearTimeout(saveTimerRef.current);
+    // }
 
-        localStorage.setItem(storageKey, JSON.stringify(draft));
-        setLastSavedAt(new Date());
-        setIsSaving(false);
-      } catch (error) {
-        console.error('Failed to save draft:', error);
-        setIsSaving(false);
+    // setIsSaving(true);
+
+    // saveTimerRef.current = setTimeout(() => {
+    //   try {
+    //     const draft: StoredDraft<T> = {
+    //       formData: getFilteredFormState(formState) as T,
+    //       metadata: {
+    //         savedAt: new Date().toISOString(),
+    //         version: '1.0',
+    //         formType: storageKey.split('-')[1] || 'unknown',
+    //       },
+    //     };
+
+    //     localStorage.setItem(storageKey, JSON.stringify(draft));
+    //     setLastSavedAt(new Date());
+    //     setIsSaving(false);
+    //   } catch (error) {
+    //     console.error('Failed to save draft:', error);
+    //     setIsSaving(false);
         
-        // Check if quota exceeded
-        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-          toast({
-            title: 'Storage Full',
-            description: 'Unable to save draft. Please submit the form or clear old drafts.',
-            variant: 'destructive',
-          });
-        }
-      }
-    }, debounceMs);
+    //     // Check if quota exceeded
+    //     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+    //       toast({
+    //         title: 'Storage Full',
+    //         description: 'Unable to save draft. Please submit the form or clear old drafts.',
+    //         variant: 'destructive',
+    //       });
+    //     }
+    //   }
+    // }, debounceMs);
 
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, [formState, storageKey, enabled, debounceMs, toast]);
+    // return () => {
+    //   if (saveTimerRef.current) {
+    //     clearTimeout(saveTimerRef.current);
+    //   }
+    // };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formState, enabled]);
 
   // Clear draft
   const clearDraft = () => {
     try {
       localStorage.removeItem(storageKey);
       setLastSavedAt(null);
+      setIsFormDirty(false);
+      // Reset initial state to current (clean) state
+      initialFormStateRef.current = JSON.parse(JSON.stringify(formState));
     } catch (error) {
       console.error('Failed to clear draft:', error);
     }
@@ -196,6 +234,7 @@ export function useFormPersistence<T extends Record<string, any>>({
     isSaving,
     clearDraft,
     saveDraft,
-    hasUnsavedChanges: hasFormData(formState),
+    hasUnsavedChanges: isFormDirty,
+    _debug: { isFormDirty, initialState: initialFormStateRef.current, currentState: formState }, // Debug info
   };
 }

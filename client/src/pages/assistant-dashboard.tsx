@@ -28,6 +28,8 @@ import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 
 export default function AssistantDashboard() {
+  console.log('🟡🟡🟡 AssistantDashboard MOUNTING - Should only show on first visit to this page');
+  
   const [, setLocation] = useLocation();
   const { clinic } = useClinic();
   const [isAuthed, setIsAuthed] = useState(false);

@@ -1,5 +1,5 @@
 import { Switch, Route, useLocation, Redirect } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -149,6 +149,8 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadm
 }
 
 function AppContent() {
+  console.log('🔵🔵🔵 AppContent RENDERING - If you see this on every navigation, React is remounting');
+  
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -160,6 +162,7 @@ function AppContent() {
   const [userRole, setUserRole] = useState<"consultant" | "assistant" | "superadmin" | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const prevSessionIdRef = useRef<string | null>(null);
 
   // Initialize draft cleanup on app startup
   useEffect(() => {
@@ -168,6 +171,7 @@ function AppContent() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      prevSessionIdRef.current = session?.user?.id ?? null; // Initialize the ref
       setSession(session);
       if (session?.user?.id) {
         // Fetch user profile from users table
@@ -217,7 +221,21 @@ function AppContent() {
       }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoading(true);
+      const currentSessionId = session?.user?.id ?? null;
+      const previousSessionId = prevSessionIdRef.current;
+      
+      console.log('🔔 AUTH STATE CHANGED - event:', _event, 'currentId:', currentSessionId, 'previousId:', previousSessionId);
+      
+      // Only trigger loading if the session actually changed (different user or signed out)
+      if (currentSessionId !== previousSessionId) {
+        console.log('✅ Session actually changed, setting isLoading to true');
+        setIsLoading(true);
+        prevSessionIdRef.current = currentSessionId;
+      } else {
+        console.log('⏭️ Same session, ignoring auth state change');
+        return; // Same session, ignore this event
+      }
+      
       setSession(session);
       if (session?.user?.id) {
         supabase
@@ -281,6 +299,7 @@ function AppContent() {
 
   // Show loading screen while checking auth or clinic
   if (isLoading || isClinicLoading) {
+    console.log('⏳ SHOWING LOADING SCREEN - isLoading:', isLoading, 'isClinicLoading:', isClinicLoading);
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-white">
         <div className="text-center space-y-4">
@@ -299,66 +318,62 @@ function AppContent() {
   // If user is authenticated but has no profile, show message to sign out and complete registration
   if (hasSessionButNoProfile) {
     return (
-      <QueryClientProvider client={queryClient}>
-        <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-white">
-          <div className="text-center space-y-6 max-w-md mx-auto p-6">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-semibold text-gray-900">Profile Not Found</h2>
-              <p className="text-gray-600">
-                Your account exists but your profile hasn't been created yet. 
-                This usually happens if you just signed up and haven't confirmed your email.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm text-gray-500">
-                Please check your email and click the confirmation link, then try logging in again.
-              </p>
-              <button
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  window.location.href = "/auth";
-                }}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Sign Out & Return to Login
-              </button>
-            </div>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-white">
+        <div className="text-center space-y-6 max-w-md mx-auto p-6">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold text-gray-900">Profile Not Found</h2>
+            <p className="text-gray-600">
+              Your account exists but your profile hasn't been created yet. 
+              This usually happens if you just signed up and haven't confirmed your email.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Please check your email and click the confirmation link, then try logging in again.
+            </p>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.href = "/auth";
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Sign Out & Return to Login
+            </button>
           </div>
         </div>
-      </QueryClientProvider>
+      </div>
     );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ClinicProvider>
-        <TooltipProvider>
-          {showSidebar ? (
-            <SidebarProvider style={style as React.CSSProperties}>
-              <div className="flex h-screen w-full">
-                <AppSidebar userRole={userRole} userData={userData} />
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <Header userData={userData} userRole={userRole} />
-                  <main className="flex-1 overflow-auto p-6">
-                    <div className="max-w-7xl mx-auto">
-                      <Router userRole={userRole} />
-                    </div>
-                  </main>
+    <TooltipProvider>
+      {showSidebar ? (
+        <SidebarProvider style={style as React.CSSProperties}>
+          <div className="flex h-screen w-full">
+            <AppSidebar userRole={userRole} userData={userData} />
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <Header userData={userData} userRole={userRole} />
+              <main className="flex-1 overflow-auto p-6">
+                <div className="max-w-7xl mx-auto">
+                  <Router userRole={userRole} />
                 </div>
-              </div>
-              {userRole !== "superadmin" && <SubscriptionOverlay />}
-            </SidebarProvider>
-          ) : (
-            <Router userRole={userRole} />
-          )}
-          <Toaster />
-        </TooltipProvider>
-      </ClinicProvider>
-    </QueryClientProvider>
+              </main>
+            </div>
+          </div>
+          {userRole !== "superadmin" && <SubscriptionOverlay />}
+        </SidebarProvider>
+      ) : (
+        <Router userRole={userRole} />
+      )}
+      <Toaster />
+    </TooltipProvider>
   );
 }
 
 export default function App() {
+  console.log('🔴🔴🔴 APP COMPONENT RE-RENDERING - This should ONLY show on initial page load! If you see this when navigating, the entire app is being destroyed and recreated!');
+  
   return (
     <QueryClientProvider client={queryClient}>
       <ClinicProvider>
