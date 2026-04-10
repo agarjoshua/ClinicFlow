@@ -83,6 +83,7 @@ export default function Procedures() {
   const [selectedCase, setSelectedCase] = useState<any>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedHospitalId, setSelectedHospitalId] = useState("");
   const [doctorSearchOpen, setDoctorSearchOpen] = useState(false);
   
   const { toast } = useToast();
@@ -320,6 +321,7 @@ export default function Procedures() {
         .from("procedures")
         .update({
           procedure_type: procedureData.procedureType,
+          hospital_id: procedureData.hospitalId,
           scheduled_date: procedureData.scheduledDate,
           scheduled_time: procedureData.scheduledTime,
           special_instructions: procedureData.notes,
@@ -384,6 +386,10 @@ export default function Procedures() {
   const openScheduleDialog = (clinicalCase: any) => {
     setSelectedCase(clinicalCase);
     setEditMode(false);
+    // Set default hospital to first one if available
+    if (hospitals.length > 0 && !selectedHospitalId) {
+      setSelectedHospitalId(hospitals[0].id);
+    }
     setScheduleDialogOpen(true);
   };
 
@@ -395,6 +401,7 @@ export default function Procedures() {
     setScheduledTime(procedure.scheduledTime || "");
     setNotes(procedure.specialInstructions || "");
     setSelectedDoctorId(procedure.consultant?.id || "");
+    setSelectedHospitalId(procedure.hospitalId || procedure.hospital?.id || "");
     setSelectedProcedure(procedure);
     setScheduleDialogOpen(true);
   };
@@ -412,6 +419,7 @@ export default function Procedures() {
     setScheduledTime("");
     setNotes("");
     setSelectedDoctorId("");
+    setSelectedHospitalId("");
     setEditMode(false);
   };
 
@@ -430,6 +438,7 @@ export default function Procedures() {
       updateProcedureMutation.mutate({
         id: selectedProcedure.id,
         procedureType,
+        hospitalId: selectedHospitalId,
         scheduledDate,
         scheduledTime,
         notes,
@@ -441,7 +450,7 @@ export default function Procedures() {
         clinicId: clinic?.id,
         clinicalCaseId: selectedCase.id,
         patientId: selectedCase.patient.id,
-        hospitalId: hospitals[0]?.id,
+        hospitalId: selectedHospitalId,
         procedureType,
         scheduledDate,
         scheduledTime,
@@ -714,6 +723,28 @@ export default function Procedures() {
             </div>
 
             <div>
+              <Label htmlFor="hospital">Hospital *</Label>
+              <Select value={selectedHospitalId} onValueChange={setSelectedHospitalId}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select hospital where procedure will be done" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hospitals.map((hospital: any) => (
+                    <SelectItem key={hospital.id} value={hospital.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded"
+                          style={{ backgroundColor: hospital.color || "#3b82f6" }}
+                        />
+                        {hospital.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Label htmlFor="doctor">Assigned Doctor/Consultant *</Label>
               <Popover open={doctorSearchOpen} onOpenChange={setDoctorSearchOpen}>
                 <PopoverTrigger asChild>
@@ -815,7 +846,7 @@ export default function Procedures() {
             </Button>
             <Button
               onClick={handleSchedule}
-              disabled={!procedureType || !scheduledDate || !scheduledTime || (editMode ? updateProcedureMutation.isPending : scheduleProcedureMutation.isPending)}
+              disabled={!procedureType || !selectedHospitalId || !scheduledDate || !scheduledTime || (editMode ? updateProcedureMutation.isPending : scheduleProcedureMutation.isPending)}
               className="bg-orange-600 hover:bg-orange-700"
             >
               {editMode 
