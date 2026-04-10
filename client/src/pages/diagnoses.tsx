@@ -221,11 +221,23 @@ export default function Diagnoses() {
 
       if (!userData) throw new Error("User record not found");
 
+      // Get hospital_id from appointment's clinic_session
+      const { data: appointmentData } = await supabase
+        .from("appointments")
+        .select(`
+          clinic_sessions!inner(hospital_id)
+        `)
+        .eq("id", appointmentId)
+        .single();
+
+      const hospitalId = appointmentData?.clinic_sessions?.hospital_id || null;
+
       // Create clinical case
       const { data: clinicalCase, error: caseError } = await supabase
         .from("clinical_cases")
         .insert({
           clinic_id: diagnosis.clinicId,
+          hospital_id: hospitalId,
           patient_id: patientId,
           appointment_id: appointmentId,
           consultant_id: userData.id,

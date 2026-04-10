@@ -207,8 +207,17 @@ export default function PostOpUpdates() {
   const createUpdateMutation = useMutation({
     mutationFn: async (data: any) => {
       const user = await supabase.auth.getUser();
+      
+      // Fetch hospital_id from the procedure
+      const { data: procedureData } = await supabase
+        .from("procedures")
+        .select("hospital_id")
+        .eq("id", data.procedureId)
+        .single();
+      
       const updateData = {
         clinic_id: clinic.id,
+        hospital_id: procedureData?.hospital_id,
         procedure_id: data.procedureId,
         update_date: new Date().toISOString().split('T')[0],
         day_post_op: parseInt(data.dayPostOp),

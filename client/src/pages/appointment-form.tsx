@@ -180,6 +180,7 @@ export default function AppointmentForm() {
         .insert([
           {
             clinic_id: appointmentData.clinicId,
+            hospital_id: selectedHospital,
             clinic_session_id: appointmentData.sessionId,
             patient_id: appointmentData.patientId,
             consultant_id: appointmentData.consultantId, // NEW: Assign to doctor

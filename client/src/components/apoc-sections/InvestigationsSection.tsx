@@ -90,12 +90,20 @@ export default function InvestigationsSection({
 
       if (!userData) throw new Error("User record not found");
 
+      // Get clinic_id and hospital_id from clinical_case
+      const { data: caseData } = await supabase
+        .from("clinical_cases")
+        .select("clinic_id, hospital_id")
+        .eq("id", clinicalCaseId)
+        .single();
+
       const { data, error } = await supabase
         .from('clinical_investigations')
         .insert({
           ...investigationData,
           investigation_type: investigationType,
           clinical_case_id: clinicalCaseId,
+          hospital_id: caseData?.hospital_id || null,
           ordered_by: userData.id,
         })
         .select()

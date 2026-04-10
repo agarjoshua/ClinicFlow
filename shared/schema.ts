@@ -100,6 +100,7 @@ export const patients = pgTable("patients", {
 export const appointments = pgTable("appointments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clinicId: varchar("clinic_id").references(() => clinics.id),
+  hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
   clinicSessionId: varchar("clinic_session_id").notNull().references(() => clinicSessions.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   consultantId: varchar("consultant_id").references(() => users.id), // Which doctor this appointment is FOR
@@ -123,6 +124,7 @@ export const appointments = pgTable("appointments", {
 export const clinicalCases = pgTable("clinical_cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clinicId: varchar("clinic_id").references(() => clinics.id),
+  hospitalId: varchar("hospital_id").references(() => hospitals.id),
   appointmentId: varchar("appointment_id").references(() => appointments.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   consultantId: varchar("consultant_id").notNull().references(() => users.id),
@@ -238,6 +240,7 @@ export const medicalImages = pgTable("medical_images", {
 // Clinical Investigations - Lab works and imaging
 export const clinicalInvestigations = pgTable("clinical_investigations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hospitalId: varchar("hospital_id").references(() => hospitals.id),
   clinicalCaseId: varchar("clinical_case_id").notNull().references(() => clinicalCases.id, { onDelete: "cascade" }),
   investigationType: text("investigation_type").notNull(), // 'lab_work' | 'imaging'
   
@@ -293,6 +296,7 @@ export const procedures = pgTable("procedures", {
 export const postOpPlans = pgTable("post_op_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clinicId: varchar("clinic_id").references(() => clinics.id),
+  hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
   procedureId: varchar("procedure_id").notNull().unique().references(() => procedures.id, { onDelete: "cascade" }),
   medications: text("medications").notNull(),
   expectedStayDays: integer("expected_stay_days"),
@@ -313,6 +317,7 @@ export const postOpPlans = pgTable("post_op_plans", {
 export const postOpUpdates = pgTable("post_op_updates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clinicId: varchar("clinic_id").references(() => clinics.id),
+  hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
   procedureId: varchar("procedure_id").notNull().references(() => procedures.id, { onDelete: "cascade" }),
   updateDate: date("update_date").notNull(),
   dayPostOp: integer("day_post_op").notNull(), // Day 1, Day 2, etc.
@@ -347,6 +352,7 @@ export const postOpUpdates = pgTable("post_op_updates", {
 // Discharges - Patient discharge records
 export const discharges = pgTable("discharges", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hospitalId: varchar("hospital_id").notNull().references(() => hospitals.id),
   procedureId: varchar("procedure_id").notNull().unique().references(() => procedures.id, { onDelete: "cascade" }),
   patientId: varchar("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
   dischargeDate: date("discharge_date").notNull(),
@@ -597,6 +603,7 @@ export const updatePatientSchema = insertPatientSchema.partial();
 
 // Appointments
 export const insertAppointmentSchema = createInsertSchema(appointments, {
+  hospitalId: z.string(),
   clinicSessionId: z.string(),
   patientId: z.string(),
   chiefComplaint: z.string().min(1, "Chief complaint is required"),
@@ -610,6 +617,7 @@ export const updateAppointmentSchema = insertAppointmentSchema.partial();
 
 // Clinical Cases
 export const insertClinicalCaseSchema = createInsertSchema(clinicalCases, {
+  hospitalId: z.string().optional(),
   patientId: z.string(),
   consultantId: z.string(),
   diagnosis: z.string().optional(),
@@ -629,6 +637,7 @@ export const insertMedicalImageSchema = createInsertSchema(medicalImages, {
 
 // Clinical Investigations
 export const insertClinicalInvestigationSchema = createInsertSchema(clinicalInvestigations, {
+  hospitalId: z.string().optional(),
   clinicalCaseId: z.string(),
   investigationType: z.enum(["lab_work", "imaging"]),
   status: z.enum(["pending", "completed", "reviewed", "cancelled"]).optional(),
@@ -651,6 +660,7 @@ export const updateProcedureSchema = insertProcedureSchema.partial();
 
 // Post-Op Plans
 export const insertPostOpPlanSchema = createInsertSchema(postOpPlans, {
+  hospitalId: z.string(),
   procedureId: z.string(),
   medications: z.string().min(1, "Medications are required"),
   baselineGCS: z.number().min(3).max(15).optional(),
@@ -664,6 +674,7 @@ export const updatePostOpPlanSchema = insertPostOpPlanSchema.partial();
 
 // Post-Op Updates
 export const insertPostOpUpdateSchema = createInsertSchema(postOpUpdates, {
+  hospitalId: z.string(),
   procedureId: z.string(),
   updateDate: z.string().or(z.date()),
   dayPostOp: z.number().min(1),
@@ -681,6 +692,7 @@ export const updatePostOpUpdateSchema = insertPostOpUpdateSchema.partial();
 
 // Discharges
 export const insertDischargeSchema = createInsertSchema(discharges, {
+  hospitalId: z.string(),
   procedureId: z.string(),
   patientId: z.string(),
   dischargeDate: z.string().or(z.date()),
