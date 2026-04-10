@@ -11,27 +11,27 @@ BEGIN;
 
 -- Add hospital_id to appointments table
 ALTER TABLE appointments 
-ADD COLUMN hospital_id VARCHAR REFERENCES hospitals(id);
+ADD COLUMN hospital_id UUID REFERENCES hospitals(id);
 
 -- Add hospital_id to clinical_cases table
 ALTER TABLE clinical_cases 
-ADD COLUMN hospital_id VARCHAR REFERENCES hospitals(id);
+ADD COLUMN hospital_id UUID REFERENCES hospitals(id);
 
 -- Add hospital_id to clinical_investigations table
 ALTER TABLE clinical_investigations 
-ADD COLUMN hospital_id VARCHAR REFERENCES hospitals(id);
+ADD COLUMN hospital_id UUID REFERENCES hospitals(id);
 
 -- Add hospital_id to post_op_plans table
 ALTER TABLE post_op_plans 
-ADD COLUMN hospital_id VARCHAR REFERENCES hospitals(id);
+ADD COLUMN hospital_id UUID REFERENCES hospitals(id);
 
 -- Add hospital_id to post_op_updates table
 ALTER TABLE post_op_updates 
-ADD COLUMN hospital_id VARCHAR REFERENCES hospitals(id);
+ADD COLUMN hospital_id UUID REFERENCES hospitals(id);
 
 -- Add hospital_id to discharges table
 ALTER TABLE discharges 
-ADD COLUMN hospital_id VARCHAR REFERENCES hospitals(id);
+ADD COLUMN hospital_id UUID REFERENCES hospitals(id);
 
 -- ============================================
 -- STEP 2: Backfill existing data
