@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { useClinic } from "@/contexts/ClinicContext";
@@ -37,7 +37,7 @@ import {
   Zap,
   Thermometer,
 } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
@@ -46,8 +46,12 @@ export default function PostOpUpdates() {
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUpdate, setSelectedUpdate] = useState<any>(null);
+  const [selectedProcedureDetails, setSelectedProcedureDetails] = useState<any>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
+
+  const [, params] = useRoute("/procedures/:id/post-op");
+  const routeProcedureId = params?.id;
 
   // Form state for post-op update
   const [dayPostOp, setDayPostOp] = useState(1);
@@ -189,6 +193,18 @@ export default function PostOpUpdates() {
       patient?.patient_number?.includes(searchLower)
     );
   });
+
+  // If route contains a specific procedure id, load its details
+  useEffect(() => {
+    if (!routeProcedureId) {
+      setSelectedProcedureDetails(null);
+      return;
+    }
+    const proc = allPostOpUpdates.find((p: any) => String(p.id) === String(routeProcedureId));
+    if (proc) {
+      setSelectedProcedureDetails(proc);
+    }
+  }, [routeProcedureId, allPostOpUpdates]);
   
   // Helper function to get latest post-op day
   const getLatestPostOpDay = (procedure: any) => {
@@ -394,6 +410,74 @@ export default function PostOpUpdates() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Selected Procedure Details (if route param provided) */}
+      {selectedProcedureDetails && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {selectedProcedureDetails.patient?.first_name} {selectedProcedureDetails.patient?.last_name}
+                </h2>
+                <p className="text-sm text-gray-500">#{selectedProcedureDetails.patient?.patient_number} • {selectedProcedureDetails.patient?.age}y • {selectedProcedureDetails.patient?.gender}</p>
+                <p className="text-sm text-gray-600 mt-2">Procedure: {selectedProcedureDetails.procedure_type}</p>
+                <p className="text-xs text-gray-500 mt-1">Hospital: <span style={{ color: selectedProcedureDetails.hospital?.color || undefined }}>{selectedProcedureDetails.hospital?.name}</span></p>
+              </div>
+              <div className="text-right">
+                <Badge variant={getLatestPostOpDay(selectedProcedureDetails) === 0 ? "destructive" : "secondary"}>Day {getLatestPostOpDay(selectedProcedureDetails)}</Badge>
+                <div className="mt-3 flex gap-2 justify-end">
+                  <Button
+                    onClick={() => {
+                      setSelectedUpdate({ procedure_id: selectedProcedureDetails.id });
+                      setEditMode(false);
+                      setUpdateDialogOpen(true);
+                    }}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Record Update
+                  </Button>
+                  <Button variant="outline" onClick={() => setLocation(`/procedures`)}>
+                    View Procedure
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {selectedProcedureDetails.post_op_updates && selectedProcedureDetails.post_op_updates.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {selectedProcedureDetails.post_op_updates
+                  .slice()
+                  .sort((a: any, b: any) => new Date(b.update_date).getTime() - new Date(a.update_date).getTime())
+                  .map((upd: any) => (
+                    <div key={upd.id} className="p-3 border rounded flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Day {upd.day_post_op} • {format(parseISO(upd.update_date), 'MMM d, yyyy')}</p>
+                        <p className="text-xs text-gray-600">GCS: {upd.gcs_score ?? 'N/A'} • Wound: {upd.wound_status || 'N/A'}</p>
+                        {upd.improvement_notes && <p className="text-sm text-green-700 mt-1">{upd.improvement_notes}</p>}
+                        {upd.new_complaints && <p className="text-sm text-yellow-700 mt-1">{upd.new_complaints}</p>}
+                      </div>
+                      <div className="flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedUpdate(upd);
+                            setEditMode(true);
+                            setUpdateDialogOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Post-Op Updates List */}
       <div className="space-y-3">

@@ -130,6 +130,8 @@ function Router({ userRole }: { userRole: "consultant" | "assistant" | "superadm
       <Route path="/discharged" component={Discharged} />
   <Route path="/inpatients" component={Inpatients} />
       <Route path="/clinical-cases" component={ClinicalCases} />
+      <Route path="/procedures/:id/post-op" component={PostOpUpdates} />
+      <Route path="/dashboard/procedures/:id/post-op" component={PostOpUpdates} />
       <Route path="/procedures" component={Procedures} />
       <Route path="/hospitals" component={Hospitals} />
       <Route path="/onboarding" component={ClinicOnboardingPage} />
